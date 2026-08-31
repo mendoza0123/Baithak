@@ -11,14 +11,23 @@ const CONFIRM: Record<Decision, string> = {
   requeue: "Requeue this meeting? The pipeline will retry it from the transcript step.",
 };
 
-export function ReviewButtons({ id, decisions }: { id: string; decisions: Decision[] }) {
+export function ReviewButtons({
+  id,
+  decisions,
+  email,
+}: {
+  id: string;
+  decisions: Decision[];
+  email: string;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState<Decision | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function run(decision: Decision) {
-    if (!window.confirm(CONFIRM[decision])) return;
+    // The action is recorded against this address, so say so before it happens.
+    if (!window.confirm(`${CONFIRM[decision]}\n\nRecorded as ${email}.`)) return;
     setError(null);
     setBusy(decision);
     try {

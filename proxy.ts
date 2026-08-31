@@ -1,9 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { COOKIE, verify } from "@/lib/auth";
 
-// Everything except /login, /api/login and static assets requires a valid signed cookie.
+// A session only counts once both steps are done: Google sign-in AND the access code.
+// A Google-only cookie carries no role and gets bounced back to /login for the code.
 export default async function proxy(req: NextRequest) {
-  if (await verify(req.cookies.get(COOKIE)?.value)) return NextResponse.next();
+  const session = await verify(req.cookies.get(COOKIE)?.value);
+  if (session?.role) return NextResponse.next();
 
   if (req.nextUrl.pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -16,5 +18,7 @@ export default async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!login|api/login|_next/static|_next/image|favicon.ico|robots.txt).*)"],
+  matcher: [
+    "/((?!login|api/login|api/auth/google|_next/static|_next/image|favicon.ico|robots.txt).*)",
+  ],
 };

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { COOKIE, MAX_AGE, safeEqual, sign, type Role } from "@/lib/auth";
+import { COOKIE, SESSION_MAX_AGE, safeEqual, sign, verify, type Role } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,22 +12,22 @@ function roleFor(code: string): Role | null {
   return null;
 }
 
+/** Step two of the gate. The Google step must already have happened — the code alone is not enough. */
 export async function POST(req: NextRequest) {
-  const form = await req.formData();
-  const code = String(form.get("code") ?? "");
-  const role = roleFor(code);
+  const pending = await verify(req.cookies.get(COOKIE)?.value);
+  if (!pending) return NextResponse.redirect(new URL("/login?e=signin", req.url), 303);
 
-  if (!role) {
-    return NextResponse.redirect(new URL("/login?e=1", req.url), 303);
-  }
+  const form = await req.formData();
+  const role = roleFor(String(form.get("code") ?? ""));
+  if (!role) return NextResponse.redirect(new URL("/login?e=code", req.url), 303);
 
   const res = NextResponse.redirect(new URL("/", req.url), 303);
-  res.cookies.set(COOKIE, await sign(role), {
+  res.cookies.set(COOKIE, await sign({ email: pending.email, role }, SESSION_MAX_AGE), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: MAX_AGE,
+    maxAge: SESSION_MAX_AGE,
   });
   return res;
 }

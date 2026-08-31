@@ -1,4 +1,4 @@
-// node --test lib/  — Node's built-in runner, no framework.
+// npm test  — Node's built-in runner, no framework.
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -7,18 +7,39 @@ process.env.AUTH_SECRET ||= "x".repeat(40);
 const { sign, verify, safeEqual } = await import("./auth.ts");
 const { ist, mins, clock, dueLabel, isOverdue, stripBriefHeader } = await import("./format.ts");
 
-test("a signed cookie round-trips, a tampered one does not", async () => {
-  const token = await sign("admin");
-  assert.equal(await verify(token), "admin");
-  assert.equal(await verify(await sign("member")), "member");
+const EMAIL = "aditya@example.com";
 
-  const [role, exp, sig] = token.split(".");
-  assert.equal(await verify(`member.${exp}.${sig}`), null, "role swap must fail");
-  assert.equal(await verify(`${role}.${exp}.deadbeef`), null, "bad signature must fail");
-  assert.equal(await verify(`${role}.${Number(exp) + 1}.${sig}`), null, "exp is signed too");
-  assert.equal(await verify(`${role}.1.${sig}`), null, "expired must fail");
+test("a signed session round-trips, a tampered one does not", async () => {
+  const token = await sign({ email: EMAIL, role: "admin" }, 3600);
+  const s = await verify(token);
+  assert.equal(s?.email, EMAIL);
+  assert.equal(s?.role, "admin");
+
+  const [payload, sig] = token.split(".");
+  assert.equal(await verify(`${payload}.deadbeef`), null, "bad signature must fail");
+  assert.equal(await verify(`${payload}x.${sig}`), null, "edited payload must fail");
   assert.equal(await verify(undefined), null);
   assert.equal(await verify("garbage"), null);
+  assert.equal(await verify("no-dot-here"), null);
+});
+
+test("a member cookie cannot be edited into an admin one", async () => {
+  const member = await verify(await sign({ email: EMAIL, role: "member" }, 3600));
+  assert.equal(member?.role, "member");
+
+  // Forge the payload an attacker would want, then present it with any signature they can make.
+  const forged = Buffer.from(JSON.stringify({ email: EMAIL, role: "admin", exp: Date.now() + 1e6 }))
+    .toString("base64url");
+  assert.equal(await verify(`${forged}.${await sign({ email: EMAIL }, 3600).then((t) => t.split(".")[1])}`), null);
+});
+
+test("expiry is enforced and the Google step carries no role", async () => {
+  assert.equal(await verify(await sign({ email: EMAIL, role: "admin" }, -1)), null, "expired");
+
+  // What /api/auth/google issues: identifies the person, grants nothing.
+  const pending = await verify(await sign({ email: EMAIL }, 900));
+  assert.equal(pending?.email, EMAIL);
+  assert.equal(pending?.role, undefined, "no role until the access code is entered");
 });
 
 test("safeEqual matches === without leaking length early", () => {

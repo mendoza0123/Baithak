@@ -1,28 +1,37 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { currentRole } from "@/lib/session";
+import { currentSession } from "@/lib/session";
 import { reviewMeeting } from "@/lib/queries";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const DECISIONS = ["approve", "skip", "requeue"];
+const DECISIONS = ["approve", "skip", "requeue"] as const;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const PAST: Record<(typeof DECISIONS)[number], string> = {
+  approve: "approved",
+  skip: "skipped",
+  requeue: "requeued",
+};
 
 export async function POST(req: NextRequest) {
   // Hiding the buttons is not the check — this is.
-  if ((await currentRole()) !== "admin") {
+  const session = await currentSession();
+  if (session?.role !== "admin") {
     return NextResponse.json({ error: "admin access required" }, { status: 403 });
   }
 
   const body = await req.json().catch(() => null);
   const id = String(body?.id ?? "");
   const decision = String(body?.decision ?? "");
-  const reason = body?.reason ? String(body.reason).slice(0, 500) : null;
 
   if (!UUID.test(id)) return NextResponse.json({ error: "bad meeting id" }, { status: 400 });
-  if (!DECISIONS.includes(decision)) {
+  if (!DECISIONS.includes(decision as (typeof DECISIONS)[number])) {
     return NextResponse.json({ error: "bad decision" }, { status: 400 });
   }
+
+  // The whole point of the Google step: status_reason names who did it, not just "in dashboard".
+  const reason = `${PAST[decision as keyof typeof PAST]} in dashboard by ${session.email}`;
 
   try {
     return NextResponse.json({ status: await reviewMeeting(id, decision, reason) });

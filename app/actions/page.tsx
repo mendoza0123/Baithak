@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Shell } from "@/components/shell";
 import { ActionRow } from "@/components/action-row";
-import { currentRole } from "@/lib/session";
+import { currentSession } from "@/lib/session";
 import { ist } from "@/lib/format";
 import { openActions } from "@/lib/queries";
 
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 const UNASSIGNED = "Unassigned";
 
 export default async function ActionsPage() {
-  const [role, items] = await Promise.all([currentRole(), openActions()]);
+  const [session, items] = await Promise.all([currentSession(), openActions()]);
 
   // Group by owner, unassigned last.
   const groups = new Map<string, typeof items>();
@@ -25,7 +25,7 @@ export default async function ActionsPage() {
   );
 
   return (
-    <Shell role={role} active="actions">
+    <Shell session={session} active="actions">
       <div className="mb-3 flex items-baseline justify-between">
         <h1 className="text-[17px] font-semibold">Open actions</h1>
         <span className="text-[13px] opacity-45 tabular-nums">{items.length}</span>

@@ -5,7 +5,7 @@ import { StatusBadge, TypeBadge } from "@/components/badges";
 import { Markdown } from "@/components/markdown";
 import { ActionRow } from "@/components/action-row";
 import { ReviewButtons } from "@/components/review-buttons";
-import { currentRole } from "@/lib/session";
+import { currentSession } from "@/lib/session";
 import { clock, ist, mins, stripBriefHeader } from "@/lib/format";
 import { getMeeting, meetingActions } from "@/lib/queries";
 
@@ -17,10 +17,14 @@ export default async function MeetingPage({ params }: PageProps<"/m/[id]">) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
 
-  const [role, m, actions] = await Promise.all([currentRole(), getMeeting(id), meetingActions(id)]);
+  const [session, m, actions] = await Promise.all([
+    currentSession(),
+    getMeeting(id),
+    meetingActions(id),
+  ]);
   if (!m) notFound();
 
-  const isAdmin = role === "admin";
+  const isAdmin = session?.role === "admin";
   const transcript = Array.isArray(m.transcript) ? m.transcript : null;
   const participants = m.brief?.participants ?? [];
 
@@ -38,7 +42,7 @@ export default async function MeetingPage({ params }: PageProps<"/m/[id]">) {
   const showReviewPanel = m.status === "awaiting_approval" || decisions.length > 0;
 
   return (
-    <Shell role={role} active="detail">
+    <Shell session={session} active="detail">
       <Link href="/" className="text-[13px] opacity-45 hover:opacity-100">
         ← Meetings
       </Link>
@@ -83,7 +87,7 @@ export default async function MeetingPage({ params }: PageProps<"/m/[id]">) {
           ) : null}
           {decisions.length > 0 ? (
             <div className="mt-3">
-              <ReviewButtons id={m.id} decisions={decisions} />
+              <ReviewButtons id={m.id} decisions={decisions} email={session!.email} />
             </div>
           ) : (
             <p className="mt-1.5 text-[13px] opacity-60">

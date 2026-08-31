@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Shell } from "@/components/shell";
 import { StatusBadge, TypeBadge, statusLabel } from "@/components/badges";
-import { currentRole } from "@/lib/session";
+import { currentSession } from "@/lib/session";
 import { ist, mins } from "@/lib/format";
 import { listMeetings, statusCounts, typeCounts, type MeetingRow, type Status } from "@/lib/queries";
 
@@ -36,8 +36,8 @@ export default async function MeetingsPage({ searchParams }: PageProps<"/">) {
   const filter = { status: one(sp.status), type: one(sp.type), search: one(sp.q) };
   const active = { ...(filter.status && { status: filter.status }), ...(filter.type && { type: filter.type }), ...(filter.search && { q: filter.search }) };
 
-  const [role, meetings, counts, types] = await Promise.all([
-    currentRole(),
+  const [session, meetings, counts, types] = await Promise.all([
+    currentSession(),
     listMeetings(filter),
     statusCounts(),
     typeCounts(),
@@ -49,7 +49,7 @@ export default async function MeetingsPage({ searchParams }: PageProps<"/">) {
   const filtered = Boolean(filter.status || filter.type || filter.search);
 
   return (
-    <Shell role={role} active="meetings">
+    <Shell session={session} active="meetings">
       {/* Status strip — horizontally scrollable on a phone rather than wrapping into a wall */}
       <div className="-mx-4 mb-3 overflow-x-auto px-4">
         <div className="flex w-max gap-1.5">
