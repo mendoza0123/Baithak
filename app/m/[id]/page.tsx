@@ -8,13 +8,14 @@ import { ReviewButtons } from "@/components/review-buttons";
 import { currentSession } from "@/lib/session";
 import { clock, ist, mins, stripBriefHeader } from "@/lib/format";
 import { getMeeting, meetingActions } from "@/lib/queries";
+import { asLang, render, type Lang } from "@/lib/hinglish";
 
 export const dynamic = "force-dynamic";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export default async function MeetingPage({ params }: PageProps<"/m/[id]">) {
-  const { id } = await params;
+export default async function MeetingPage({ params, searchParams }: PageProps<"/m/[id]">) {
+  const [{ id }, sp] = await Promise.all([params, searchParams]);
   if (!UUID.test(id)) notFound();
 
   const [session, m, actions] = await Promise.all([
@@ -26,6 +27,9 @@ export default async function MeetingPage({ params }: PageProps<"/m/[id]">) {
 
   const isAdmin = session?.role === "admin";
   const transcript = Array.isArray(m.transcript) ? m.transcript : null;
+  const lang = asLang(sp.lang);
+  // Switching script is a navigation, so keep the sections open across it.
+  const opened = Boolean(sp.lang);
   const participants = m.brief?.participants ?? [];
 
   // Which transitions review_meeting() will accept from here. The database has the final say.
@@ -138,16 +142,29 @@ export default async function MeetingPage({ params }: PageProps<"/m/[id]">) {
         <p className="mt-4 text-[12.5px] opacity-45">Quality notes: {m.brief.quality_notes}</p>
       ) : null}
 
+      {/* One control for both Hindi sections. Script only — the words are identical either way. */}
+      {m.plaud_summary_md || transcript?.length ? (
+        <div id="hindi" className="mt-5 flex items-center gap-2 text-[12px]">
+          <span className="opacity-45">Hindi text:</span>
+          <ScriptTab id={m.id} to="hi" on={lang === "hi"} label="हिन्दी" />
+          <ScriptTab id={m.id} to="hinglish" on={lang === "hinglish"} label="Hinglish" />
+        </div>
+      ) : null}
+
       {m.plaud_summary_md ? (
-        <Disclosure title="Plaud's original note (Hindi)" className="mt-4">
+        <Disclosure title="Plaud's original note" className="mt-2" open={opened}>
           <Card className="mt-2">
-            <Markdown>{m.plaud_summary_md}</Markdown>
+            <Markdown>{render(m.plaud_summary_md, lang)}</Markdown>
           </Card>
         </Disclosure>
       ) : null}
 
       {transcript && transcript.length > 0 ? (
-        <Disclosure title={`Transcript — ${transcript.length} segments, Hindi`} className="mt-3">
+        <Disclosure
+          title={`Transcript — ${transcript.length} segments`}
+          className="mt-3"
+          open={opened}
+        >
           <Card className="mt-2 max-h-[70vh] overflow-y-auto">
             <ol className="flex flex-col gap-2.5 text-[13.5px] leading-relaxed">
               {transcript.map((seg, i) => (
@@ -157,7 +174,7 @@ export default async function MeetingPage({ params }: PageProps<"/m/[id]">) {
                   </span>
                   <span className="min-w-0 break-words">
                     {seg.speaker ? <span className="font-medium opacity-70">{seg.speaker} — </span> : null}
-                    {seg.text}
+                    {render(seg.text ?? "", lang)}
                   </span>
                 </li>
               ))}
@@ -185,17 +202,32 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
   );
 }
 
+function ScriptTab({ id, to, on, label }: { id: string; to: Lang; on: boolean; label: string }) {
+  return (
+    <Link
+      href={`/m/${id}?lang=${to}#hindi`}
+      className={`rounded-full border px-2.5 py-1 ${
+        on ? "border-transparent bg-black text-white" : "border-black/12 hover:border-black/30"
+      }`}
+    >
+      {label}
+    </Link>
+  );
+}
+
 function Disclosure({
   title,
   className = "",
+  open = false,
   children,
 }: {
   title: string;
   className?: string;
+  open?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <details className={className}>
+    <details className={className} open={open}>
       <summary className="flex items-center gap-1.5 rounded-lg border border-black/8 bg-white px-3.5 py-2.5 text-[13.5px] font-medium select-none dark:border-white/10 dark:bg-white/[0.035]">
         <span className="opacity-40">▸</span>
         {title}

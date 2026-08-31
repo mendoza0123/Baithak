@@ -71,6 +71,18 @@ matching, so restoring dark mode is deleting that rule.
 Filters, search and the collapsible transcript / Hindi-note sections are plain links, a GET form and
 native `<details>`, so the only client components are the Google button and the review buttons.
 
+## Hindi text: script toggle
+
+Plaud's note and the transcript are Hindi.  on a meeting page renders them in
+Roman script via  — IAST from sanscript, then Hindi schwa deletion. It is
+**transliteration, not translation**: same words, different script, done on the server so no
+library ships to the browser.
+
+Hindi and Hinglish versions of the English *brief* are translation, not script conversion, so they
+have to come from the pipeline. No migration needed when they do —  is already
+, so writing  and  keys into it is enough and the
+dashboard can read them straight away.
+
 ## Deploy (Vercel)
 
 Set the six env vars in Project → Settings → Environment Variables, add the deployment domain to the
