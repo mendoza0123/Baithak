@@ -73,14 +73,14 @@ native `<details>`, so the only client components are the Google button and the 
 
 ## Hindi text: script toggle
 
-Plaud's note and the transcript are Hindi.  on a meeting page renders them in
-Roman script via  — IAST from sanscript, then Hindi schwa deletion. It is
+Plaud's note and the transcript are Hindi. `?lang=hinglish` on a meeting page renders them in
+Roman script via `lib/hinglish.ts` — IAST from sanscript, then Hindi schwa deletion. It is
 **transliteration, not translation**: same words, different script, done on the server so no
 library ships to the browser.
 
 Hindi and Hinglish versions of the English *brief* are translation, not script conversion, so they
-have to come from the pipeline. No migration needed when they do —  is already
-, so writing  and  keys into it is enough and the
+have to come from the pipeline. No migration needed when they do — `summaries.brief` is already
+`jsonb`, so writing `summary_md_hi` and `summary_md_hinglish` keys into it is enough and the
 dashboard can read them straight away.
 
 ## Deploy (Vercel)
