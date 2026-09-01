@@ -48,6 +48,7 @@ export default async function ActionsPage() {
                   <li key={a.id}>
                     <ActionRow
                       a={a}
+                      interactive
                       footer={
                         <Link
                           href={`/m/${a.meeting_id}`}

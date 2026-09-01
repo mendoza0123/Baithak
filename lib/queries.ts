@@ -33,10 +33,21 @@ export type TranscriptSegment = {
   text?: string;
 };
 
+export type DiscussionPoint = {
+  topic?: string;
+  summary?: string;
+  details?: string[];
+  metrics?: string[];
+};
+
 export type Brief = {
   executive_summary?: string;
   participants?: { label?: string; inferred_name?: string; role?: string }[];
   quality_notes?: string;
+  decisions?: string[];
+  open_issues?: string[];
+  next_meeting_agenda?: string[];
+  discussion_points?: DiscussionPoint[];
 };
 
 export type MeetingDetail = MeetingRow & {
@@ -140,11 +151,43 @@ export function openActions() {
   );
 }
 
-/** The only write this app can make. The database enforces which transitions are legal. */
-export async function reviewMeeting(id: string, decision: string, reason: string | null) {
-  const rows = await q<{ review_meeting: string }>(
-    `select baithak.review_meeting($1::uuid, $2, $3) as review_meeting`,
-    [id, decision, reason],
+export type CarriedAction = ActionItem & {
+  title_en: string | null;
+  title_original: string | null;
+  recorded_at: Date;
+};
+
+/**
+ * Open items from meetings before this one, so opening a meeting page shows what's still
+ * hanging from earlier discussions. Not scoped to meeting_type — most recordings are still
+ * 'unclassified' (the pipeline only types at high confidence), so a same-series filter would
+ * mostly come back empty. Chronological is what the data actually supports today.
+ */
+export function carriedForwardActions(meetingId: string) {
+  return q<CarriedAction>(
+    `select a.id, a.meeting_id, a.description, a.owner,
+            to_char(a.due_date, 'YYYY-MM-DD') as due_date,
+            a.priority, a.status, a.source_ms,
+            m.title_en, m.title_original, m.recorded_at
+     from baithak.action_items a
+     join baithak.meetings m on m.id = a.meeting_id
+     where a.status = 'open'
+       and m.recorded_at < (select recorded_at from baithak.meetings where id = $1::uuid)
+     order by m.recorded_at desc
+     limit 20`,
+    [meetingId],
   );
-  return rows[0]?.review_meeting ?? null;
+}
+
+/**
+ * The only write this app makes. set_action_status is a SECURITY DEFINER function on
+ * baithak_app's grant list — the database enforces which transitions are legal, this is
+ * just the call. Requires db-migration-set-action-status.sql to have been applied.
+ */
+export async function setActionStatus(id: string, status: "open" | "done") {
+  const rows = await q<ActionItem>(
+    `select (baithak.set_action_status($1::uuid, $2)).*`,
+    [id, status],
+  );
+  return rows[0] ?? null;
 }

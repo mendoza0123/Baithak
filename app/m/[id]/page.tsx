@@ -4,10 +4,9 @@ import { Shell } from "@/components/shell";
 import { StatusBadge, TypeBadge } from "@/components/badges";
 import { Markdown } from "@/components/markdown";
 import { ActionRow } from "@/components/action-row";
-import { ReviewButtons } from "@/components/review-buttons";
 import { currentSession } from "@/lib/session";
 import { clock, ist, mins, stripBriefHeader } from "@/lib/format";
-import { getMeeting, meetingActions } from "@/lib/queries";
+import { carriedForwardActions, getMeeting, meetingActions } from "@/lib/queries";
 import { asLang, render, type Lang } from "@/lib/hinglish";
 
 export const dynamic = "force-dynamic";
@@ -18,32 +17,20 @@ export default async function MeetingPage({ params, searchParams }: PageProps<"/
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   if (!UUID.test(id)) notFound();
 
-  const [session, m, actions] = await Promise.all([
+  const [session, m, actions, carriedOpen] = await Promise.all([
     currentSession(),
     getMeeting(id),
     meetingActions(id),
+    carriedForwardActions(id), // always status='open' — see the query
   ]);
   if (!m) notFound();
 
-  const isAdmin = session?.role === "admin";
   const transcript = Array.isArray(m.transcript) ? m.transcript : null;
   const lang = asLang(sp.lang);
   // Switching script is a navigation, so keep the sections open across it.
   const opened = Boolean(sp.lang);
   const participants = m.brief?.participants ?? [];
-
-  // Which transitions review_meeting() will accept from here. The database has the final say.
-  const decisions: ("approve" | "skip" | "requeue")[] = !isAdmin
-    ? []
-    : m.status === "awaiting_approval"
-      ? ["approve", "skip"]
-      : m.status === "ready"
-        ? ["skip"]
-        : m.status === "skipped" || m.status === "failed"
-          ? ["requeue"]
-          : [];
-
-  const showReviewPanel = m.status === "awaiting_approval" || decisions.length > 0;
+  const brief = m.brief;
 
   return (
     <Shell session={session} active="detail">
@@ -68,36 +55,44 @@ export default async function MeetingPage({ params, searchParams }: PageProps<"/
         <TypeBadge type={m.meeting_type} />
         <StatusBadge status={m.status} />
         {m.sensitive ? (
-          <span className="rounded-full bg-amber-500/18 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+          <span className="rounded-full bg-amber-500/18 px-2 py-0.5 text-[11px] font-medium text-amber-700">
             sensitive
           </span>
         ) : null}
       </div>
 
       {m.status_reason ? (
-        <p className="mt-3 rounded-lg bg-black/4 px-3 py-2 text-[13px] opacity-70 dark:bg-white/6">
-          {m.status_reason}
-        </p>
+        <p className="mt-3 rounded-lg bg-black/4 px-3 py-2 text-[13px] opacity-70">{m.status_reason}</p>
+      ) : null}
+      {m.sensitivity_reason ? (
+        <p className="mt-1.5 text-[12px] opacity-45">{m.sensitivity_reason}</p>
       ) : null}
 
-      {/* The buttons are a convenience; /api/review re-checks the admin cookie server-side. */}
-      {showReviewPanel ? (
-        <section className="mt-4 rounded-xl border border-amber-500/35 bg-amber-500/8 p-3.5">
-          <h2 className="text-[13px] font-semibold text-amber-800 dark:text-amber-300">
-            {m.status === "awaiting_approval" ? "Needs review" : "Admin actions"}
+      {/* What's still open from before this meeting — the point of opening this page mid- or
+          pre-meeting. Not scoped to meeting_type: see carriedForwardActions() for why. */}
+      {carriedOpen.length > 0 ? (
+        <section className="mt-4 rounded-xl border border-black/8 bg-black/[0.02] p-3.5">
+          <h2 className="text-[13px] font-semibold opacity-70">
+            Carried forward · {carriedOpen.length} still open from earlier meetings
           </h2>
-          {m.sensitivity_reason ? (
-            <p className="mt-1 text-[13px] opacity-75">{m.sensitivity_reason}</p>
-          ) : null}
-          {decisions.length > 0 ? (
-            <div className="mt-3">
-              <ReviewButtons id={m.id} decisions={decisions} email={session!.email} />
-            </div>
-          ) : (
-            <p className="mt-1.5 text-[13px] opacity-60">
-              An admin has to approve or skip this brief before it is distributed.
-            </p>
-          )}
+          <ul className="mt-2.5 flex flex-col gap-2">
+            {carriedOpen.map((a) => (
+              <li key={a.id}>
+                <ActionRow
+                  a={a}
+                  interactive
+                  footer={
+                    <Link
+                      href={`/m/${a.meeting_id}`}
+                      className="mt-2 block truncate text-[12px] opacity-45 underline underline-offset-2 hover:opacity-100"
+                    >
+                      {a.title_en || a.title_original || "Untitled"} · {ist(a.recorded_at)}
+                    </Link>
+                  }
+                />
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 
@@ -125,13 +120,23 @@ export default async function MeetingPage({ params, searchParams }: PageProps<"/
         )}
       </Card>
 
+      {/* Structured recap — the same material the prose brief covers, but scannable rather than
+          read start to finish. Straight from brief jsonb, no schema change involved. */}
+      {brief?.decisions?.length || brief?.open_issues?.length || brief?.next_meeting_agenda?.length ? (
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <RecapList title="Decided" items={brief?.decisions} tone="emerald" />
+          <RecapList title="Open issues" items={brief?.open_issues} tone="amber" />
+          <RecapList title="Next agenda" items={brief?.next_meeting_agenda} tone="slate" />
+        </div>
+      ) : null}
+
       {actions.length > 0 ? (
         <section className="mt-4">
-          <h2 className="mb-2 text-[13px] font-semibold opacity-55">Action items</h2>
+          <h2 className="mb-2 text-[13px] font-semibold opacity-55">Action items from this meeting</h2>
           <ul className="flex flex-col gap-2">
             {actions.map((a) => (
               <li key={a.id}>
-                <ActionRow a={a} />
+                <ActionRow a={a} interactive />
               </li>
             ))}
           </ul>
@@ -198,6 +203,37 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
       className={`rounded-xl border border-black/8 bg-white p-4 dark:border-white/10 dark:bg-white/[0.035] ${className}`}
     >
       {children}
+    </div>
+  );
+}
+
+const RECAP_TONE = {
+  emerald: "border-emerald-500/25 bg-emerald-500/6",
+  amber: "border-amber-500/25 bg-amber-500/6",
+  slate: "border-black/10 bg-black/[0.02]",
+} as const;
+
+function RecapList({
+  title,
+  items,
+  tone,
+}: {
+  title: string;
+  items?: string[];
+  tone: keyof typeof RECAP_TONE;
+}) {
+  if (!items?.length) return null;
+  return (
+    <div className={`rounded-xl border p-3.5 ${RECAP_TONE[tone]}`}>
+      <h3 className="text-[12px] font-semibold opacity-60">{title}</h3>
+      <ul className="mt-1.5 flex flex-col gap-1.5 text-[13px] leading-snug">
+        {items.map((it, i) => (
+          <li key={i} className="flex gap-1.5">
+            <span className="opacity-35">·</span>
+            <span className="min-w-0">{it}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

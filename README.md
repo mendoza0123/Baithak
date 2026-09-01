@@ -1,8 +1,13 @@
 # Baithak Briefs
 
-Mobile-first internal viewer for the meetings Plaud records and the English briefs the hourly
-pipeline writes for them. Read-only, except one action: an admin approving / skipping / requeueing
-a meeting via `baithak.review_meeting()`.
+Mobile-first internal viewer for the meetings Plaud records and the English briefs the pipeline
+writes for them — built for 2-hour meetings nobody's taking notes in, so the next one starts from
+"here's what's still open," not from memory. Read-only, except one thing: anyone signed in can
+mark an action item done or reopen it, via `baithak.set_action_status()`.
+
+There used to be an approve/skip review step here (`baithak.review_meeting()`, admin-only). It's
+gone by request — every meeting the pipeline writes now shows up immediately, sensitive ones
+included. The function still exists in the database; nothing here calls it.
 
 ## Run it
 
@@ -21,8 +26,9 @@ npm test                     # node --test, no framework
    role, and only a cookie with a role gets past `proxy.ts`.
 
 Neither half works alone: the right code with no Google session is rejected, and a Google session
-with no code never leaves `/login`. Approvals are recorded against the signed-in address, so
-`status_reason` reads `approved in dashboard by <email>` instead of just `approved in dashboard`.
+with no code never leaves `/login`. `ADMIN_CODE` vs `ACCESS_CODE` only decides the badge shown in
+the header today — there's no admin-only action left to gate. Kept because a future feature may
+want it, not because anything currently checks it.
 
 ### Google Cloud setup (once)
 
@@ -43,7 +49,7 @@ Adding a new domain later means adding it to the authorised origins, or sign-in 
 | `GOOGLE_CLIENT_ID` | web OAuth client ID; without it `/login` refuses to proceed |
 | `ALLOWED_EMAILS` | optional, comma-separated. Empty = any Google account may reach step 2 |
 | `ACCESS_CODE` | team code → `member` |
-| `ADMIN_CODE` | admin code → `admin` (approve / skip / requeue) |
+| `ADMIN_CODE` | admin code → `admin` (badge only, see above) |
 | `AUTH_SECRET` | 32+ random chars, signs the session cookie |
 
 `.env*` and `HANDOFF.md` are gitignored. Rotate the DB password any time with
@@ -60,16 +66,37 @@ Adding a new domain later means adding it to the authorised origins, or sign-in 
   `google-auth-library`, requires a verified email, checks `ALLOWED_EMAILS`.
 - `lib/db.ts` / `lib/queries.ts` — every query, parameterized, `$1`-style only (the transaction
   pooler rejects named prepared statements). Server-only; nothing DB-ish reaches the client.
-- `app/api/review/route.ts` — re-checks the admin role server-side, then calls
-  `baithak.review_meeting($1,$2,$3)`. The database decides which transitions are legal; an illegal
-  one comes back as a 409 with the function's own message.
+- `app/api/actions/status/route.ts` — any signed-in session (no admin check — see above), calls
+  `baithak.set_action_status($1,$2)`. The database enforces the only two legal values (`open`,
+  `done`) and refuses to touch a `dropped` item; an illegal call comes back as a 409 with the
+  function's own message.
 - Pages are all `force-dynamic` — this is a live operations view.
 
 Light mode only: one `@custom-variant` rule in `globals.css` stops the `dark:` utilities from ever
 matching, so restoring dark mode is deleting that rule.
 
 Filters, search and the collapsible transcript / Hindi-note sections are plain links, a GET form and
-native `<details>`, so the only client components are the Google button and the review buttons.
+native `<details>`, so the only client components are the Google button and the action-item toggle.
+
+## Meeting continuity
+
+The two features that replace the review step, both aimed at the 2-hour-meeting problem — walking
+in with no notes, fully dependent on what the pipeline wrote:
+
+- **Recap** (`app/m/[id]/page.tsx`) — `brief.decisions[]`, `brief.open_issues[]` and
+  `brief.next_meeting_agenda[]` rendered as three scannable lists, straight from the existing
+  `summaries.brief` jsonb. No schema change; the pipeline already writes these fields, they just
+  weren't surfaced outside the prose brief before.
+- **Carried forward** (`carriedForwardActions()` in `lib/queries.ts`) — every currently-open action
+  item from meetings recorded before this one, shown at the top of the page. Deliberately not
+  scoped to `meeting_type`: most recordings are still `unclassified` (the pipeline only types at
+  `confidence_threshold`), so a same-series filter would come back empty most of the time.
+  Chronological is what the data actually supports today — revisit if classification improves.
+- **The toggle itself** — a checkbox on every action item, everywhere one is shown, backed by
+  `db-migration-set-action-status.sql` (already applied to the live project). Deliberately binary
+  — open or done, not a three-state tracker. Nobody had a concrete picture of what "in progress"
+  should mean yet; add it as a third allowed value in the function and the toggle component if a
+  plain checkbox turns out too coarse.
 
 ## Hindi text: script toggle
 

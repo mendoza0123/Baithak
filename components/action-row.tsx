@@ -1,9 +1,20 @@
 import { clock, dueLabel, isOverdue } from "@/lib/format";
 import type { ActionItem } from "@/lib/queries";
+import { ActionStatus } from "@/components/action-status";
 
-export function ActionRow({ a, footer }: { a: ActionItem; footer?: React.ReactNode }) {
+export function ActionRow({
+  a,
+  footer,
+  interactive = false,
+}: {
+  a: ActionItem;
+  footer?: React.ReactNode;
+  /** Show the done/open checkbox. Off by default so read-only contexts (carry-forward previews) don't get one. */
+  interactive?: boolean;
+}) {
   const due = dueLabel(a.due_date);
   const done = a.status !== "open";
+  const toggleable = interactive && (a.status === "open" || a.status === "done");
 
   return (
     <div
@@ -11,7 +22,16 @@ export function ActionRow({ a, footer }: { a: ActionItem; footer?: React.ReactNo
         done ? "opacity-50" : ""
       }`}
     >
-      <p className={`text-[14px] leading-snug ${done ? "line-through" : ""}`}>{a.description}</p>
+      <div className="flex items-start gap-2.5">
+        {toggleable ? (
+          <div className="pt-0.5">
+            <ActionStatus id={a.id} status={a.status as "open" | "done"} />
+          </div>
+        ) : null}
+        <p className={`min-w-0 text-[14px] leading-snug ${done ? "line-through" : ""}`}>
+          {a.description}
+        </p>
+      </div>
 
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
         {a.owner ? (
@@ -39,7 +59,7 @@ export function ActionRow({ a, footer }: { a: ActionItem; footer?: React.ReactNo
             due {due}
           </span>
         ) : null}
-        {done ? <span className="opacity-50">{a.status}</span> : null}
+        {a.status === "dropped" ? <span className="opacity-50">dropped</span> : null}
         {a.source_ms != null ? <span className="font-mono opacity-30">@{clock(a.source_ms)}</span> : null}
       </div>
 
