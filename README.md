@@ -86,17 +86,20 @@ in with no notes, fully dependent on what the pipeline wrote:
 - **Recap** (`app/m/[id]/page.tsx`) — `brief.decisions[]`, `brief.open_issues[]` and
   `brief.next_meeting_agenda[]` rendered as three scannable lists, straight from the existing
   `summaries.brief` jsonb. No schema change; the pipeline already writes these fields, they just
-  weren't surfaced outside the prose brief before.
-- **Carried forward** (`carriedForwardActions()` in `lib/queries.ts`) — every currently-open action
-  item from meetings recorded before this one, shown at the top of the page. Deliberately not
-  scoped to `meeting_type`: most recordings are still `unclassified` (the pipeline only types at
-  `confidence_threshold`), so a same-series filter would come back empty most of the time.
-  Chronological is what the data actually supports today — revisit if classification improves.
-- **The toggle itself** — a checkbox on every action item, everywhere one is shown, backed by
+  weren't surfaced outside the prose brief before. Scoped to that one meeting — nothing else.
+- **The toggle** — a checkbox on every action item, everywhere one is shown, backed by
   `db-migration-set-action-status.sql` (already applied to the live project). Deliberately binary
   — open or done, not a three-state tracker. Nobody had a concrete picture of what "in progress"
   should mean yet; add it as a third allowed value in the function and the toggle component if a
   plain checkbox turns out too coarse.
+
+An earlier version also put a "carried forward" panel of every open item, from *any* meeting, on
+every meeting page. Dropped: `meeting_type` is `unclassified` on 46 of 49 recordings (the pipeline
+only types at `confidence_threshold`), so there's no reliable way to know an item on the Auditor
+onboarding meeting belongs to the Auditor onboarding thread rather than a completely unrelated
+Flipkart-returns discussion — showing it inline read as part of that meeting's own checklist, and
+it wasn't. The full cross-meeting backlog belongs on `/actions`, which is already clearly labeled
+as everything open, not scoped to whatever meeting you happened to open.
 
 ## Hindi text: script toggle
 

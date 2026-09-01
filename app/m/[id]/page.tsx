@@ -6,7 +6,7 @@ import { Markdown } from "@/components/markdown";
 import { ActionRow } from "@/components/action-row";
 import { currentSession } from "@/lib/session";
 import { clock, ist, mins, stripBriefHeader } from "@/lib/format";
-import { carriedForwardActions, getMeeting, meetingActions } from "@/lib/queries";
+import { getMeeting, meetingActions } from "@/lib/queries";
 import { asLang, render, type Lang } from "@/lib/hinglish";
 
 export const dynamic = "force-dynamic";
@@ -17,11 +17,10 @@ export default async function MeetingPage({ params, searchParams }: PageProps<"/
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   if (!UUID.test(id)) notFound();
 
-  const [session, m, actions, carriedOpen] = await Promise.all([
+  const [session, m, actions] = await Promise.all([
     currentSession(),
     getMeeting(id),
     meetingActions(id),
-    carriedForwardActions(id), // always status='open' — see the query
   ]);
   if (!m) notFound();
 
@@ -66,34 +65,6 @@ export default async function MeetingPage({ params, searchParams }: PageProps<"/
       ) : null}
       {m.sensitivity_reason ? (
         <p className="mt-1.5 text-[12px] opacity-45">{m.sensitivity_reason}</p>
-      ) : null}
-
-      {/* What's still open from before this meeting — the point of opening this page mid- or
-          pre-meeting. Not scoped to meeting_type: see carriedForwardActions() for why. */}
-      {carriedOpen.length > 0 ? (
-        <section className="mt-4 rounded-xl border border-black/8 bg-black/[0.02] p-3.5">
-          <h2 className="text-[13px] font-semibold opacity-70">
-            Carried forward · {carriedOpen.length} still open from earlier meetings
-          </h2>
-          <ul className="mt-2.5 flex flex-col gap-2">
-            {carriedOpen.map((a) => (
-              <li key={a.id}>
-                <ActionRow
-                  a={a}
-                  interactive
-                  footer={
-                    <Link
-                      href={`/m/${a.meeting_id}`}
-                      className="mt-2 block truncate text-[12px] opacity-45 underline underline-offset-2 hover:opacity-100"
-                    >
-                      {a.title_en || a.title_original || "Untitled"} · {ist(a.recorded_at)}
-                    </Link>
-                  }
-                />
-              </li>
-            ))}
-          </ul>
-        </section>
       ) : null}
 
       {participants.length > 0 && !m.summary_md ? (

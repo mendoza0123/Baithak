@@ -151,34 +151,6 @@ export function openActions() {
   );
 }
 
-export type CarriedAction = ActionItem & {
-  title_en: string | null;
-  title_original: string | null;
-  recorded_at: Date;
-};
-
-/**
- * Open items from meetings before this one, so opening a meeting page shows what's still
- * hanging from earlier discussions. Not scoped to meeting_type — most recordings are still
- * 'unclassified' (the pipeline only types at high confidence), so a same-series filter would
- * mostly come back empty. Chronological is what the data actually supports today.
- */
-export function carriedForwardActions(meetingId: string) {
-  return q<CarriedAction>(
-    `select a.id, a.meeting_id, a.description, a.owner,
-            to_char(a.due_date, 'YYYY-MM-DD') as due_date,
-            a.priority, a.status, a.source_ms,
-            m.title_en, m.title_original, m.recorded_at
-     from baithak.action_items a
-     join baithak.meetings m on m.id = a.meeting_id
-     where a.status = 'open'
-       and m.recorded_at < (select recorded_at from baithak.meetings where id = $1::uuid)
-     order by m.recorded_at desc
-     limit 20`,
-    [meetingId],
-  );
-}
-
 /**
  * The only write this app makes. set_action_status is a SECURITY DEFINER function on
  * baithak_app's grant list — the database enforces which transitions are legal, this is
