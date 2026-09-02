@@ -101,6 +101,32 @@ Flipkart-returns discussion — showing it inline read as part of that meeting's
 it wasn't. The full cross-meeting backlog belongs on `/actions`, which is already clearly labeled
 as everything open, not scoped to whatever meeting you happened to open.
 
+## The Actions tab
+
+`owner` is free text the pipeline writes from what it heard — 127 distinct values across 279 open
+items at last count, "Mahesh" next to "Mahesh + team" next to "Mahesh, Aditya" as three separate
+groups. Grouping by it, as the page originally did, was never going to hold up past a couple of
+weeks of volume. What replaced it, all reusing the exact chip-and-search pattern already proven on
+the Meetings page rather than inventing a second one:
+
+- **Meeting-type chips** (MIS / Sales / Other) — `meeting_type` is populated now (199/52/28 open,
+  unlike when the carried-forward panel was cut), so this is a real, cheap axis.
+- **Overdue and High-priority chips** — 30 of 279 open items are already overdue and had no
+  dedicated view before this; a filter chip made them findable in one tap.
+- **Search over description + owner**, not owner-as-group-header — "Mahesh" now matches every
+  variant instead of needing 127 buckets collapsed into one.
+- **An "open 2+ weeks" badge** on any card past that age with no due date — due dates only exist on
+  35 of 279 items, so age-since-the-meeting is the only staleness signal that covers the rest.
+- **A Completed tab** (`completedActions()` in `lib/queries.ts`), most-recently-finished first, with
+  the toggle still live so a mis-click is one tap to undo.
+
+`set_action_status` now takes an optional third `actor` argument
+(`db-migration-action-status-note.sql`) and writes it into a new `status_note` column — "marked
+done by \<email\>" / "reopened by \<email\>", the same one-line-not-a-history-table pattern
+`meetings.status_reason` already used for `review_meeting`. It shows on the card whenever present.
+Toggles made before this migration have no note; that's correct, not a bug — there's no way to
+retroactively know who did those.
+
 ## Hindi text: script toggle
 
 Plaud's note and the transcript are Hindi. `?lang=hinglish` on a meeting page renders them in

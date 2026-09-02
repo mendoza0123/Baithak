@@ -47,6 +47,14 @@ export function isOverdue(d: string | null) {
 }
 
 /**
+ * Most action items never get a due_date (35 of 279 today), so it can't be the only staleness
+ * signal — age since the meeting is the one proxy that covers everything.
+ */
+export function isStale(recordedAt: Date, days = 14) {
+  return Date.now() - new Date(recordedAt).getTime() > days * 86_400_000;
+}
+
+/**
  * The pipeline's brief opens with its own `# title` plus italic meta/participant lines, which the
  * meeting page header already shows. Drop them so the page does not say everything twice.
  * ponytail: a regex on a known generator's output — worst case the title shows twice again.

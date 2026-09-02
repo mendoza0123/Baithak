@@ -71,6 +71,21 @@ export type ActionItem = {
   priority: "high" | "normal";
   status: "open" | "done" | "dropped";
   source_ms: number | null;
+  status_note: string | null;
+};
+
+export type ActionWithMeeting = ActionItem & {
+  title_en: string | null;
+  title_original: string | null;
+  recorded_at: Date;
+  meeting_type: MeetingType;
+};
+
+export type ActionFilter = {
+  type?: string;
+  /** "overdue" (past due_date) or "high" (priority = high). Open-view only — see the page. */
+  urgent?: string;
+  search?: string;
 };
 
 // Latest brief for a meeting; left join so meetings the pipeline hasn't summarised yet still show up.
@@ -130,7 +145,7 @@ export function meetingActions(id: string) {
   return q<ActionItem>(
     `select id, meeting_id, description, owner,
             to_char(due_date, 'YYYY-MM-DD') as due_date,
-            priority, status, source_ms
+            priority, status, source_ms, status_note
      from baithak.action_items
      where meeting_id = $1::uuid
      order by (status = 'open') desc, priority = 'high' desc, due_date nulls last`,
@@ -138,28 +153,84 @@ export function meetingActions(id: string) {
   );
 }
 
-export function openActions() {
-  return q<ActionItem & { title_en: string | null; title_original: string | null; recorded_at: Date }>(
-    `select a.id, a.meeting_id, a.description, a.owner,
-            to_char(a.due_date, 'YYYY-MM-DD') as due_date,
-            a.priority, a.status, a.source_ms,
-            m.title_en, m.title_original, m.recorded_at
-     from baithak.action_items a
-     join baithak.meetings m on m.id = a.meeting_id
-     where a.status = 'open'
-     order by a.due_date nulls last, m.recorded_at desc`,
+// Shared by openActions/completedActions — type, urgency and a description+owner search, each
+// only applied when set. $1 is injected by the caller (the status to match).
+const ACTION_FILTER_WHERE = `
+  and ($2::text is null or m.meeting_type::text = $2)
+  and ($3::text is null or
+       ($3 = 'overdue' and a.due_date < current_date and a.status = 'open')
+       or ($3 = 'high' and a.priority = 'high'))
+  and ($4::text is null or
+       coalesce(a.description, '') || ' ' || coalesce(a.owner, '') ilike '%' || $4 || '%')`;
+
+const ACTION_SELECT = `
+  select a.id, a.meeting_id, a.description, a.owner,
+         to_char(a.due_date, 'YYYY-MM-DD') as due_date,
+         a.priority, a.status, a.source_ms, a.status_note,
+         m.title_en, m.title_original, m.recorded_at, m.meeting_type
+  from baithak.action_items a
+  join baithak.meetings m on m.id = a.meeting_id
+  where a.status = $1`;
+
+/** Counts for the Open/Completed tabs. */
+export function actionStatusCounts() {
+  return q<{ status: "open" | "done"; count: number }>(
+    `select status, count(*)::int as count from baithak.action_items
+     where status in ('open', 'done') group by status`,
+  );
+}
+
+/** Type-chip counts, independent of whatever filter is currently active — same pattern as
+ * the Meetings page's statusCounts/typeCounts, so chip numbers don't shift confusingly as
+ * you filter. */
+export function actionTypeCounts(status: "open" | "done") {
+  return q<{ meeting_type: MeetingType; count: number }>(
+    `select m.meeting_type, count(*)::int as count
+     from baithak.action_items a join baithak.meetings m on m.id = a.meeting_id
+     where a.status = $1 group by m.meeting_type`,
+    [status],
+  );
+}
+
+/** Open items only — "urgent" isn't a concept that applies to completed work. */
+export function actionUrgentCounts() {
+  return q<{ overdue: number; high: number }>(
+    `select count(*) filter (where due_date < current_date)::int as overdue,
+            count(*) filter (where priority = 'high')::int as high
+     from baithak.action_items where status = 'open'`,
+  ).then((rows) => rows[0] ?? { overdue: 0, high: 0 });
+}
+
+export function openActions(filter: ActionFilter = {}) {
+  return q<ActionWithMeeting>(
+    `${ACTION_SELECT} ${ACTION_FILTER_WHERE}
+     order by a.due_date nulls last, m.recorded_at desc
+     limit 400`,
+    ["open", filter.type || null, filter.urgent || null, filter.search || null],
+  );
+}
+
+/** Most recently changed first — that's "what did we just finish," not meeting order. */
+export function completedActions(filter: Omit<ActionFilter, "urgent"> = {}) {
+  return q<ActionWithMeeting>(
+    `${ACTION_SELECT} ${ACTION_FILTER_WHERE}
+     order by a.updated_at desc
+     limit 200`,
+    ["done", filter.type || null, null, filter.search || null],
   );
 }
 
 /**
  * The only write this app makes. set_action_status is a SECURITY DEFINER function on
  * baithak_app's grant list — the database enforces which transitions are legal, this is
- * just the call. Requires db-migration-set-action-status.sql to have been applied.
+ * just the call. `actor` becomes "marked done by <email>" / "reopened by <email>" in
+ * status_note — same idea as review_meeting's "approved in dashboard by <email>", one
+ * latest-note field, not a full history. Requires db-migration-action-status-note.sql.
  */
-export async function setActionStatus(id: string, status: "open" | "done") {
+export async function setActionStatus(id: string, status: "open" | "done", actor: string) {
   const rows = await q<ActionItem>(
-    `select (baithak.set_action_status($1::uuid, $2)).*`,
-    [id, status],
+    `select (baithak.set_action_status($1::uuid, $2, $3)).*`,
+    [id, status, actor],
   );
   return rows[0] ?? null;
 }

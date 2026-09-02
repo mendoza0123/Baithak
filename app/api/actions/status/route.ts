@@ -11,7 +11,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Marking a task done is low-stakes team upkeep, not a distribution decision — any signed-in
 // session qualifies (proxy.ts already guarantees one has a role by the time it reaches here).
 export async function POST(req: NextRequest) {
-  if (!(await currentSession())?.role) {
+  const session = await currentSession();
+  if (!session?.role) {
     return NextResponse.json({ error: "sign in required" }, { status: 401 });
   }
 
@@ -25,8 +26,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const row = await setActionStatus(id, status as "open" | "done");
-    return NextResponse.json({ status: row?.status ?? null });
+    const row = await setActionStatus(id, status as "open" | "done", session.email);
+    return NextResponse.json({ status: row?.status ?? null, note: row?.status_note ?? null });
   } catch (e) {
     // set_action_status() raises if the item is missing or dropped — that message is the useful one.
     return NextResponse.json({ error: (e as Error).message }, { status: 409 });

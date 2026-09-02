@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Shell } from "@/components/shell";
 import { StatusBadge, TypeBadge, statusLabel } from "@/components/badges";
+import { Chip, chipHref } from "@/components/chip";
 import { currentSession } from "@/lib/session";
 import { ist, mins } from "@/lib/format";
 import { listMeetings, statusCounts, typeCounts, type MeetingRow, type Status } from "@/lib/queries";
@@ -19,16 +20,8 @@ const STATUS_ORDER: Status[] = [
 ];
 
 const TYPES = ["mis", "sales", "other", "unclassified"] as const;
-
-function href(current: Record<string, string>, patch: Record<string, string | null>) {
-  const p = new URLSearchParams(current);
-  for (const [k, v] of Object.entries(patch)) {
-    if (v === null) p.delete(k);
-    else p.set(k, v);
-  }
-  const s = p.toString();
-  return s ? `/?${s}` : "/";
-}
+const href = (current: Record<string, string>, patch: Record<string, string | null>) =>
+  chipHref("/", current, patch);
 
 export default async function MeetingsPage({ searchParams }: PageProps<"/">) {
   const sp = await searchParams;
@@ -121,21 +114,6 @@ export default async function MeetingsPage({ searchParams }: PageProps<"/">) {
         </ul>
       )}
     </Shell>
-  );
-}
-
-function Chip({ href, on, label, count }: { href: string; on: boolean; label: string; count: number }) {
-  return (
-    <Link
-      href={href}
-      className={`shrink-0 rounded-full border px-3 py-1.5 text-[13px] whitespace-nowrap transition-colors ${
-        on
-          ? "border-transparent bg-black text-white dark:bg-white dark:text-black"
-          : "border-black/10 hover:border-black/25 dark:border-white/12 dark:hover:border-white/30"
-      }`}
-    >
-      {label} <span className="opacity-50 tabular-nums">{count}</span>
-    </Link>
   );
 }
 
