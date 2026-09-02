@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Session } from "@/lib/auth";
+import { RefreshButton } from "@/components/refresh-button";
 
 export function Shell({
   session,
@@ -25,6 +26,7 @@ export function Shell({
                 admin
               </span>
             ) : null}
+            <RefreshButton />
             <form action="/api/logout" method="post" className="ml-0.5">
               <button
                 type="submit"
