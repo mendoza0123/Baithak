@@ -3,7 +3,7 @@ import { Shell } from "@/components/shell";
 import { ActionRow } from "@/components/action-row";
 import { Chip, chipHref } from "@/components/chip";
 import { currentSession } from "@/lib/session";
-import { ist, isStale } from "@/lib/format";
+import { dayLabel, isStale, istDateKey, timeLabel } from "@/lib/format";
 import {
   actionStatusCounts,
   actionTypeCounts,
@@ -22,6 +22,29 @@ const TYPE_LABEL: Record<MeetingType, string> = { mis: "MIS", sales: "Sales", ot
 
 function one(v: string | string[] | undefined) {
   return (Array.isArray(v) ? v[0] : v) || "";
+}
+
+/** date -> meeting -> its items, both levels newest-meeting-first. Grouped in JS rather than
+ * SQL: it's a display reshape of an already-fetched, already-filtered list, not a new query. */
+function groupByDateAndMeeting(items: ActionWithMeeting[]) {
+  const dates = new Map<string, Map<string, { meeting: ActionWithMeeting; items: ActionWithMeeting[] }>>();
+
+  for (const a of items) {
+    const dateKey = istDateKey(a.recorded_at);
+    if (!dates.has(dateKey)) dates.set(dateKey, new Map());
+    const meetings = dates.get(dateKey)!;
+    if (!meetings.has(a.meeting_id)) meetings.set(a.meeting_id, { meeting: a, items: [] });
+    meetings.get(a.meeting_id)!.items.push(a);
+  }
+
+  return [...dates.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([dateKey, meetings]) => ({
+      dateKey,
+      meetings: [...meetings.values()].sort(
+        (a, b) => +new Date(b.meeting.recorded_at) - +new Date(a.meeting.recorded_at),
+      ),
+    }));
 }
 
 export default async function ActionsPage({ searchParams }: PageProps<"/actions">) {
@@ -48,6 +71,7 @@ export default async function ActionsPage({ searchParams }: PageProps<"/actions"
   const doneTotal = statusCount.find((c) => c.status === "done")?.count ?? 0;
   const byType = new Map(typeCount.map((t) => [t.meeting_type, t.count]));
   const filtered = Boolean(filter.type || filter.urgent || filter.search);
+  const groups = groupByDateAndMeeting(items);
 
   return (
     <Shell session={session} active="actions">
@@ -130,31 +154,38 @@ export default async function ActionsPage({ searchParams }: PageProps<"/actions"
           {view === "open" ? "Nothing open." : "Nothing completed yet."}
         </p>
       ) : (
-        <ul className="flex flex-col gap-2">
-          {items.map((a) => (
-            <li key={a.id}>
-              <ActionRow
-                a={a}
-                interactive
-                stale={view === "open" && isStale(a.recorded_at)}
-                type={filter.type ? undefined : a.meeting_type}
-                footer={<MeetingLink a={a} />}
-              />
-            </li>
+        <div className="flex flex-col gap-5">
+          {groups.map((g) => (
+            <section key={g.dateKey}>
+              <h2 className="mb-2 text-[13px] font-semibold opacity-55">{dayLabel(g.dateKey)}</h2>
+              <div className="flex flex-col gap-3">
+                {g.meetings.map(({ meeting, items: meetingItems }) => (
+                  <div key={meeting.meeting_id} className="border-l-2 border-black/10 pl-3">
+                    <Link
+                      href={`/m/${meeting.meeting_id}`}
+                      className="mb-1.5 block truncate text-[12.5px] font-medium opacity-70 underline-offset-2 hover:underline"
+                    >
+                      {meeting.title_en || meeting.title_original || "Untitled"} · {timeLabel(meeting.recorded_at)}
+                    </Link>
+                    <ul className="flex flex-col gap-2">
+                      {meetingItems.map((a) => (
+                        <li key={a.id}>
+                          <ActionRow
+                            a={a}
+                            interactive
+                            stale={view === "open" && isStale(a.recorded_at)}
+                            type={filter.type ? undefined : a.meeting_type}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </section>
           ))}
-        </ul>
+        </div>
       )}
     </Shell>
-  );
-}
-
-function MeetingLink({ a }: { a: ActionWithMeeting }) {
-  return (
-    <Link
-      href={`/m/${a.meeting_id}`}
-      className="mt-2 block truncate text-[12px] opacity-45 underline underline-offset-2 hover:opacity-100"
-    >
-      {a.title_en || a.title_original || "Untitled"} · {ist(a.recorded_at)}
-    </Link>
   );
 }

@@ -6,6 +6,14 @@ const day = new Intl.DateTimeFormat("en-GB", {
   day: "numeric",
   month: "short",
 });
+const dayWithYear = new Intl.DateTimeFormat("en-GB", {
+  timeZone: TZ,
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+const isoDate = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }); // YYYY-MM-DD, sorts lexically = chronologically
 const time = new Intl.DateTimeFormat("en-GB", {
   timeZone: TZ,
   hour: "2-digit",
@@ -43,7 +51,23 @@ export function dueLabel(d: string | null) {
 
 export function isOverdue(d: string | null) {
   if (!d) return false;
-  return d < new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
+  return d < isoDate.format(new Date());
+}
+
+/** IST calendar day as a sort/group key — "which day did this happen, in the timezone the
+ * team is actually in," not whatever the server's UTC day happens to be. */
+export function istDateKey(d: Date | string) {
+  return isoDate.format(typeof d === "string" ? new Date(d) : d);
+}
+
+/** "Wed 26 Aug 2026" — a date-only version of ist(), for grouping headers. */
+export function dayLabel(d: Date | string) {
+  return dayWithYear.format(typeof d === "string" ? new Date(d) : d);
+}
+
+/** "12:50" — the time-only counterpart, for a label that already shows the date separately. */
+export function timeLabel(d: Date | string) {
+  return time.format(typeof d === "string" ? new Date(d) : d);
 }
 
 /**

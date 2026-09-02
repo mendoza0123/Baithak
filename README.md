@@ -119,6 +119,10 @@ the Meetings page rather than inventing a second one:
   35 of 279 items, so age-since-the-meeting is the only staleness signal that covers the rest.
 - **A Completed tab** (`completedActions()` in `lib/queries.ts`), most-recently-finished first, with
   the toggle still live so a mis-click is one tap to undo.
+- **Date → meeting → items**, replacing the flat card list (`groupByDateAndMeeting()` in
+  `app/actions/page.tsx`). A JS reshape of the already-filtered result, not a new query — grouping
+  by `owner` was the problem, not the row order, so this composes with every chip above for free:
+  `?type=mis` still filters first, the grouping just organizes whatever comes back.
 
 `set_action_status` now takes an optional third `actor` argument
 (`db-migration-action-status-note.sql`) and writes it into a new `status_note` column — "marked
