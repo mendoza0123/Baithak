@@ -133,6 +133,16 @@ details > summary::-webkit-details-marker {
   display: none;
 }
 
+/* Rotate the ▶ on an open group. Written here rather than as a Tailwind group-open: variant —
+   that produced no rule at all (verified: computed transform stayed `none` when open). */
+details > summary .twist {
+  display: inline-block;
+  transition: transform 120ms ease;
+}
+details[open] > summary .twist {
+  transform: rotate(90deg);
+}
+
 /* The brief's own H1 is stripped before render, so the first section must not keep its divider. */
 .md > h2:first-child {
   border-top: 0;

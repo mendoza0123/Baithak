@@ -154,36 +154,52 @@ export default async function ActionsPage({ searchParams }: PageProps<"/actions"
           {view === "open" ? "Nothing open." : "Nothing completed yet."}
         </p>
       ) : (
-        <div className="flex flex-col gap-5">
-          {groups.map((g) => (
-            <section key={g.dateKey}>
-              <h2 className="mb-2 text-[13px] font-semibold opacity-55">{dayLabel(g.dateKey)}</h2>
-              <div className="flex flex-col gap-3">
-                {g.meetings.map(({ meeting, items: meetingItems }) => (
-                  <div key={meeting.meeting_id} className="border-l-2 border-black/10 pl-3">
-                    <Link
-                      href={`/m/${meeting.meeting_id}`}
-                      className="mb-1.5 block truncate text-[12.5px] font-medium opacity-70 underline-offset-2 hover:underline"
-                    >
-                      {meeting.title_en || meeting.title_original || "Untitled"} · {timeLabel(meeting.recorded_at)}
-                    </Link>
-                    <ul className="flex flex-col gap-2">
-                      {meetingItems.map((a) => (
-                        <li key={a.id}>
-                          <ActionRow
-                            a={a}
-                            interactive
-                            stale={view === "open" && isStale(a.recorded_at)}
-                            type={filter.type ? undefined : a.meeting_type}
-                          />
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))}
+        <div className="flex flex-col gap-2">
+          {groups.map((g, i) => {
+            const count = g.meetings.reduce((n, mg) => n + mg.items.length, 0);
+            return (
+              <details
+                key={g.dateKey}
+                // Filtering is itself a request to see the matches, so don't make them click
+                // twice. Unfiltered, only the newest day opens — the rest is 200+ items of scroll.
+                open={filtered || i === 0}
+              >
+                <summary className="flex items-center gap-2 rounded-lg bg-black/[0.04] px-3 py-2 text-[13px] font-semibold">
+                  <span className="twist text-[9px] opacity-40">▶</span>
+                  {dayLabel(g.dateKey)}
+                  <span className="ml-auto text-[12px] font-normal whitespace-nowrap opacity-50 tabular-nums">
+                    {count} in {g.meetings.length} meeting{g.meetings.length === 1 ? "" : "s"}
+                  </span>
+                </summary>
+
+                <div className="mt-2 mb-1 flex flex-col gap-3">
+                  {g.meetings.map(({ meeting, items: meetingItems }) => (
+                    <div key={meeting.meeting_id} className="border-l-2 border-black/10 pl-3">
+                      <Link
+                        href={`/m/${meeting.meeting_id}`}
+                        className="mb-1.5 block truncate text-[12.5px] font-medium opacity-70 underline-offset-2 hover:underline"
+                      >
+                        {meeting.title_en || meeting.title_original || "Untitled"} ·{" "}
+                        {timeLabel(meeting.recorded_at)}
+                      </Link>
+                      <ul className="flex flex-col gap-2">
+                        {meetingItems.map((a) => (
+                          <li key={a.id}>
+                            <ActionRow
+                              a={a}
+                              interactive
+                              stale={view === "open" && isStale(a.recorded_at)}
+                              type={filter.type ? undefined : a.meeting_type}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            );
+          })}
         </div>
       )}
     </Shell>
