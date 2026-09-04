@@ -33,6 +33,30 @@ export function mins(sec: number | null) {
   return sec < 60 ? `${sec} sec` : `${Math.round(sec / 60)} min`;
 }
 
+/**
+ * How long between two pipeline stages — "32 min", "1 hr 26 min", "4d 3h". Coarser as it grows,
+ * because at two weeks nobody cares about the minutes.
+ */
+export function gap(from: Date | string | null, to: Date | string | null) {
+  if (!from || !to) return null;
+  const ms = new Date(to).getTime() - new Date(from).getTime();
+  if (!(ms >= 0)) return null;
+
+  const totalMin = Math.round(ms / 60_000);
+  if (totalMin < 1) return "under a min";
+  if (totalMin < 60) return `${totalMin} min`;
+
+  const totalHr = Math.floor(totalMin / 60);
+  if (totalHr < 24) {
+    const m = totalMin % 60;
+    return m ? `${totalHr} hr ${m} min` : `${totalHr} hr`;
+  }
+
+  const days = Math.floor(totalHr / 24);
+  const h = totalHr % 24;
+  return h ? `${days}d ${h}h` : `${days}d`;
+}
+
 /** "12:34" from transcript start_ms. */
 export function clock(ms: number | null | undefined) {
   if (ms == null) return "--:--";

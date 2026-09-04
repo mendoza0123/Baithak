@@ -90,3 +90,20 @@ test("the brief's own title block is stripped, the body is not", () => {
   // A brief that does not start with an H1 is left alone.
   assert.equal(stripBriefHeader("## Executive summary\nbody"), "## Executive summary\nbody");
 });
+
+test("gap() coarsens as the wait grows, and refuses nonsense", async () => {
+  const { gap } = await import("./format.ts");
+  const t = (a: string, b: string) => gap(`2026-09-01T00:00:00Z`, `2026-09-01T${a}:${b}:00Z`);
+
+  assert.equal(t("00", "00"), "under a min");
+  assert.equal(t("00", "32"), "32 min");
+  assert.equal(t("01", "00"), "1 hr"); // exact hours drop the "0 min"
+  assert.equal(t("01", "26"), "1 hr 26 min");
+  assert.equal(gap("2026-09-01T00:00:00Z", "2026-09-03T00:00:00Z"), "2d");
+  assert.equal(gap("2026-09-01T00:00:00Z", "2026-09-03T03:00:00Z"), "2d 3h");
+
+  // A stage that hasn't happened, or clocks that disagree, must not render a negative duration.
+  assert.equal(gap("2026-09-01T00:00:00Z", null), null);
+  assert.equal(gap(null, "2026-09-01T00:00:00Z"), null);
+  assert.equal(gap("2026-09-02T00:00:00Z", "2026-09-01T00:00:00Z"), null);
+});

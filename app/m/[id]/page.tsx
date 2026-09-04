@@ -5,8 +5,8 @@ import { StatusBadge, TypeBadge } from "@/components/badges";
 import { Markdown } from "@/components/markdown";
 import { ActionRow } from "@/components/action-row";
 import { currentSession } from "@/lib/session";
-import { clock, ist, mins, stripBriefHeader } from "@/lib/format";
-import { getMeeting, meetingActions } from "@/lib/queries";
+import { clock, gap, ist, mins, stripBriefHeader } from "@/lib/format";
+import { getMeeting, meetingActions, type MeetingDetail } from "@/lib/queries";
 import { asLang, render, type Lang } from "@/lib/hinglish";
 
 export const dynamic = "force-dynamic";
@@ -66,6 +66,8 @@ export default async function MeetingPage({ params, searchParams }: PageProps<"/
       {m.sensitivity_reason ? (
         <p className="mt-1.5 text-[12px] opacity-45">{m.sensitivity_reason}</p>
       ) : null}
+
+      <Timeline m={m} />
 
       {participants.length > 0 && !m.summary_md ? (
         <p className="mt-4 text-[13px] opacity-60">
@@ -165,6 +167,39 @@ export default async function MeetingPage({ params, searchParams }: PageProps<"/
         </p>
       ) : null}
     </Shell>
+  );
+}
+
+/**
+ * Where this recording has been: on the device, in Plaud's cloud, in this database, summarised.
+ * The gaps are the point — a meeting can sit in Plaud for days before anything here can see it,
+ * which is the usual answer to "why isn't my meeting showing up yet".
+ */
+function Timeline({ m }: { m: MeetingDetail }) {
+  const steps: { label: string; at: Date | null; from: Date | null }[] = [
+    { label: "Recorded", at: m.recorded_at, from: null },
+    { label: "In Plaud's cloud", at: m.synced_at, from: m.recorded_at },
+    { label: "Picked up by Baithak", at: m.discovered_at, from: m.synced_at },
+    { label: "Brief written", at: m.summarised_at, from: m.discovered_at },
+  ];
+
+  return (
+    <dl className="mt-3 grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-1 rounded-lg bg-black/[0.03] px-3 py-2.5 text-[12px]">
+      {steps.map((s) => {
+        const waited = gap(s.from, s.at);
+        return (
+          <div key={s.label} className="col-span-3 grid grid-cols-subgrid items-baseline">
+            <dt className="whitespace-nowrap opacity-50">{s.label}</dt>
+            {/* No "IST" per row — the meta line above already says it, and repeating it four
+                times wraps every row onto two lines at 360px. */}
+            <dd className="whitespace-nowrap tabular-nums">{s.at ? ist(s.at) : "—"}</dd>
+            <dd className="text-right whitespace-nowrap tabular-nums opacity-40">
+              {waited ? `+${waited}` : ""}
+            </dd>
+          </div>
+        );
+      })}
+    </dl>
   );
 }
 

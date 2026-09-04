@@ -60,6 +60,10 @@ export type MeetingDetail = MeetingRow & {
   model: string | null;
   prompt_version: string | null;
   summarised_at: Date | null;
+  /** When Plaud's cloud first had the file — the pipeline copies Plaud's own created_at here. */
+  synced_at: Date | null;
+  /** When this row was inserted, i.e. when the pipeline first discovered the recording. */
+  discovered_at: Date | null;
 };
 
 export type ActionItem = {
@@ -130,6 +134,7 @@ export async function getMeeting(id: string) {
     `select m.id, m.title_en, m.title_original, m.meeting_type, m.status, m.status_reason,
             m.recorded_at, m.duration_sec, m.sensitive, m.sensitivity_reason,
             m.plaud_summary_md, m.transcript,
+            m.synced_at, m.created_at as discovered_at,
             s.summary_md, s.brief, s.version, s.model, s.prompt_version,
             s.created_at as summarised_at,
             s.brief->>'executive_summary' as gist,
