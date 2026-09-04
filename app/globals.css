@@ -149,3 +149,35 @@ details[open] > summary .twist {
   padding-top: 0;
   margin-top: 0;
 }
+
+/* Desktop keyboard navigation. j/k move native focus between rows, so the ring below is the
+   whole selection model — no client-side "selected index" to keep in sync with the DOM.
+   Scoped to the desktop breakpoint because the key listeners never attach below it. */
+@media (min-width: 1024px) {
+  [data-nav]:focus-visible {
+    outline: 2px solid #1a1a19;
+    outline-offset: 2px;
+    border-radius: 12px;
+  }
+
+  /* Rails and side panels get out of the way until pointed at. */
+  aside::-webkit-scrollbar,
+  .lg\:overflow-y-auto::-webkit-scrollbar {
+    width: 6px;
+  }
+  aside::-webkit-scrollbar-thumb,
+  .lg\:overflow-y-auto::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, currentColor 15%, transparent);
+    border-radius: 3px;
+  }
+}
+
+kbd {
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  background: color-mix(in oklab, currentColor 8%, transparent);
+  border: 1px solid color-mix(in oklab, currentColor 14%, transparent);
+  border-radius: 5px;
+  padding: 0.1em 0.4em;
+  white-space: nowrap;
+}
