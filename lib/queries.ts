@@ -177,6 +177,37 @@ const ACTION_SELECT = `
   join baithak.meetings m on m.id = a.meeting_id
   where a.status = $1`;
 
+export type SyncState = {
+  last_run_at: Date | null;
+  last_run_status: "ok" | "partial" | "error" | null;
+  last_run_note: string | null;
+  last_synced_at: Date | null;
+  recordings_seen: number | null;
+  recordings_new: number | null;
+  /** Fallbacks, always present — see freshness() for why they exist. */
+  newest_row_at: Date | null;
+  processing: number;
+};
+
+/**
+ * The header freshness bar. sync_state is written by the scheduled Plaud sync, not by this app
+ * (it only has SELECT there) — so until that job starts writing, last_run_at is null and the bar
+ * falls back to newest_row_at: the most recent row the pipeline actually inserted, which is a
+ * true "when did data last arrive" even with nothing reporting its own runs.
+ */
+export async function freshness() {
+  const rows = await q<SyncState>(
+    `select ss.last_run_at, ss.last_run_status, ss.last_run_note, ss.last_synced_at,
+            ss.recordings_seen, ss.recordings_new,
+            (select max(created_at) from baithak.meetings) as newest_row_at,
+            (select count(*)::int from baithak.meetings
+              where status in ('pending_transcript', 'summarising')) as processing
+     from baithak.sync_state ss
+     where ss.source = 'plaud'`,
+  );
+  return rows[0] ?? null;
+}
+
 /** Counts for the Open/Completed tabs. */
 export function actionStatusCounts() {
   return q<{ status: "open" | "done"; count: number }>(

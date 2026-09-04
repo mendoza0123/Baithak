@@ -102,6 +102,17 @@ export function isStale(recordedAt: Date, days = 14) {
   return Date.now() - new Date(recordedAt).getTime() > days * 86_400_000;
 }
 
+/** Nothing heard for this long and the sync is presumed stuck. Lives here, not in the component,
+ * because reading the clock during render trips react-hooks/purity. */
+export function isOlderThanHours(d: Date | string, hours: number) {
+  return Date.now() - new Date(d).getTime() > hours * 3_600_000;
+}
+
+/** How long ago, as a phrase: "2 hrs ago", "just now". */
+export function agoLabel(d: Date | string) {
+  return gap(d, new Date()) ?? "just now";
+}
+
 /**
  * The pipeline's brief opens with its own `# title` plus italic meta/participant lines, which the
  * meeting page header already shows. Drop them so the page does not say everything twice.

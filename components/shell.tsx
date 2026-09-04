@@ -1,8 +1,10 @@
 import Link from "next/link";
 import type { Session } from "@/lib/auth";
 import { RefreshButton } from "@/components/refresh-button";
+import { FreshnessBar } from "@/components/freshness-bar";
+import { freshness } from "@/lib/queries";
 
-export function Shell({
+export async function Shell({
   session,
   active,
   children,
@@ -11,6 +13,7 @@ export function Shell({
   active: "meetings" | "actions" | "detail";
   children: React.ReactNode;
 }) {
+  const sync = await freshness();
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col">
       <header className="sticky top-0 z-10 border-b border-black/8 bg-[#f6f6f5]/85 backdrop-blur-md">
@@ -38,6 +41,7 @@ export function Shell({
             </form>
           </div>
         </div>
+        <FreshnessBar s={sync} />
       </header>
       <main className="flex-1 px-4 pt-4 pb-16">{children}</main>
     </div>
