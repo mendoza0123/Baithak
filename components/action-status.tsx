@@ -41,6 +41,7 @@ export function ActionStatus({ id, status }: { id: string; status: Status }) {
         type="button"
         onClick={toggle}
         disabled={busy}
+        data-toggle
         aria-pressed={done}
         title={done ? "Mark open again" : "Mark done"}
         className={`flex size-[18px] shrink-0 items-center justify-center rounded-md border text-[11px] leading-none disabled:opacity-50 ${

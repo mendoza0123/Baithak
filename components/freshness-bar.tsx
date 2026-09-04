@@ -11,7 +11,7 @@ const STUCK_AFTER_HOURS = 26;
  * actually landed. The fallback isn't a nicety: the job doesn't write sync_state yet, so without
  * it this bar would render nothing at all until that job is changed.
  */
-export function FreshnessBar({ s }: { s: SyncState | null }) {
+export function FreshnessBar({ s, className = "" }: { s: SyncState | null; className?: string }) {
   if (!s) return null;
 
   const reported = Boolean(s.last_run_at);
@@ -30,7 +30,7 @@ export function FreshnessBar({ s }: { s: SyncState | null }) {
   const ago = agoLabel(at);
 
   return (
-    <div className={`flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-4 py-1.5 text-[12px] ${tone}`}>
+    <div className={`flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-4 py-1.5 text-[12px] ${tone} ${className}`}>
       {stale ? <span className="font-semibold">Sync may be stuck —</span> : null}
 
       <span className={stale || failed ? "" : "opacity-55"}>

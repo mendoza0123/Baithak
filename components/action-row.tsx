@@ -25,7 +25,10 @@ export function ActionRow({
 
   return (
     <div
-      className={`rounded-xl border border-black/8 bg-white p-3 dark:border-white/10 dark:bg-white/[0.035] ${
+      data-nav
+      tabIndex={-1}
+      data-open={`/m/${a.meeting_id}`}
+      className={`rounded-xl border border-black/8 bg-white p-3 transition-colors lg:hover:border-black/20 dark:border-white/10 dark:bg-white/[0.035] ${
         done ? "opacity-50" : ""
       }`}
     >

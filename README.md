@@ -76,7 +76,38 @@ Light mode only: one `@custom-variant` rule in `globals.css` stops the `dark:` u
 matching, so restoring dark mode is deleting that rule.
 
 Filters, search and the collapsible transcript / Hindi-note sections are plain links, a GET form and
-native `<details>`, so the only client components are the Google button and the action-item toggle.
+native `<details>`, so the only client components are the Google button, the refresh button, the
+action-item toggle and the desktop keyboard layer.
+
+## Desktop
+
+Same three screens, same routes, same data — laid out for a monitor above the `lg` breakpoint
+(1024px). The far-right panels wait for `xl` (1280px) so a 13" laptop doesn't get four columns.
+
+**The rule: mobile is frozen.** Every desktop style is `lg:`/`xl:`-prefixed, so below 1024px not
+one of them applies. Where a column needed contiguous children, the fix was a wrapper `<div>` with
+no classes of its own — inert in a block layout, a flex/grid child on a monitor — never a reorder.
+Nothing was moved in the DOM, and nothing heavy is rendered twice. The check that this holds is a
+geometry diff: dump the position, size and text of every visible leaf under `<main>` at 390px on
+each page state, before and after; it has to come back empty.
+
+- `components/shell.tsx` — the mobile header (`lg:hidden`) and a desktop sidebar (`hidden lg:flex`)
+  are separate markup. The freshness bar renders twice from the same component, once inline for the
+  phone and once pinned to the foot of the rail, where it doesn't scroll away.
+- `components/panels.tsx` — the side columns. `MeetingRail` keeps the meeting list on screen on
+  `/m/[id]`; `CommandDeck` and `OwnerPanel` are stat panels. None of them adds a query beyond the
+  two the pages already gained (overdue counts on `/`, the sibling list on `/m/[id]`) — the rest is
+  a reshape of the list already on screen, so the owner tally re-counts under the active filter.
+- `components/keys.tsx` — the keyboard layer. Listeners attach only above `lg`, so on a phone
+  nothing runs and the help sheet never renders. Selection is native focus on `[data-nav]`
+  elements, which is why there is no selected-index state to keep in sync with the DOM: `j`/`k`
+  move focus, `Enter` and the focus ring come free. Hidden rows (a collapsed day group) are
+  skipped. It is also what opens the transcript on desktop — `<details open>` can't be made
+  responsive in CSS, so the side panel's disclosures carry `data-desktop-open` and get opened on
+  mount, still collapsible by hand.
+
+`j`/`k` next & previous row · `Enter` open · `x` tick the focused action done · `/` search ·
+`g m` / `g a` navigate · `r` refresh · `?` the list · `Esc` close.
 
 ## Meeting continuity
 
