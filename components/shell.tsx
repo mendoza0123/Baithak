@@ -41,8 +41,10 @@ export async function Shell({
             </form>
           </div>
         </div>
-        <FreshnessBar s={sync} />
       </header>
+      {/* Outside the sticky header on purpose — it's a status line you read once, not a control
+          worth pinning to the top of every screen while you scroll. */}
+      <FreshnessBar s={sync} />
       <main className="flex-1 px-4 pt-4 pb-16">{children}</main>
     </div>
   );
