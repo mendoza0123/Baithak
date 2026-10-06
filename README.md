@@ -70,26 +70,89 @@ Adding a new domain later means adding it to the authorised origins, or sign-in 
   `baithak.set_action_status($1,$2)`. The database enforces the only two legal values (`open`,
   `done`) and refuses to touch a `dropped` item; an illegal call comes back as a 409 with the
   function's own message.
+- `components/charts.tsx` — every chart, as plain SVG emitted by a server component. No chart
+  library and no client JS: bars, coverage, age buckets and the cadence heatmap are rects and
+  paths, and colour comes from the CSS tokens so each one follows the theme with no second code
+  path.
 - Pages are all `force-dynamic` — this is a live operations view.
 
-Light mode only: one `@custom-variant` rule in `globals.css` stops the `dark:` utilities from ever
-matching, so restoring dark mode is deleting that rule.
-
 Filters, search and the collapsible transcript / Hindi-note sections are plain links, a GET form and
-native `<details>`, so the only client components are the Google button, the refresh button, the
-action-item toggle and the desktop keyboard layer.
+native `<details>`. The client components are the Google button, the refresh button, the action-item
+toggle, the desktop keyboard layer, the theme toggle and the ⌘K palette.
+
+## Routes
+
+`/` is **Today** — a pulse view: open/overdue/undated counts, backlog by meeting type, deadline
+coverage, backlog ageing, the overdue items that need someone now, the latest briefs, meeting
+cadence and pipeline state. It exists because the reverse-chronological meeting feed used to be
+the landing page, which meant anyone wanting the state of play had to do the arithmetic themselves.
+
+The feed moved to **`/meetings`**, unchanged apart from styling — same filters, same chips, same
+URL params, so `/meetings?status=failed&type=mis` behaves exactly as `/?status=…` did.
+
+Every count on Today is an aggregate read (`actionDateCoverage`, `actionAgeBuckets`,
+`meetingCadence` in `lib/queries.ts`). Nothing there pulls rows into JS to count them.
+
+## Design system
+
+Tokens live in one `@theme inline` block in `app/globals.css`; components reference roles
+(`text-ink-2`, `bg-surface`, `border-subtle`), never raw values. That is deliberate — hierarchy
+used to be built from `opacity-30`…`opacity-80` across 93 call sites and twelve distinct values,
+which compounds unpredictably when nested and left several text colours below 4.5:1.
+
+- **Three ink levels**, each a real colour clearing its target on its own surface: `ink` 16.3:1,
+  `ink-2` 6.5:1, `ink-3` 5.0:1 (light); 15.6 / 7.1 / 5.1 (dark). `border-strong` clears the WCAG
+  1.4.11 non-text 3:1 so form borders are a real affordance.
+- **One accent.** Indigo means "act here"; `danger` / `warning` / `success` are reserved for state
+  and never reused as a series colour. Status always ships icon + label + colour, so it survives
+  greyscale and forced-colours mode.
+- **Nine type steps** replacing fifteen ad-hoc `text-[Npx]` values, nothing under 11px, and 11px
+  only as `.eyebrow` (uppercase with tracking). `.num` puts every figure that has to line up into
+  tabular IBM Plex Mono.
+- **Three radii** — `rounded-control` (6px), `rounded-card` (10px), `rounded-full`. Small swatch
+  and heatmap-cell radii stay arbitrary on purpose: a 2px corner on an 8px square is a different
+  decision from a card corner.
+- **Charts**: three categorical hues plus a neutral, validated for colour-vision deficiency
+  (worst all-pairs deuteran ΔE 9.2 light / 9.0 dark, against a target of 8). `unclassified` takes
+  grey because it is the absence of a category, not a fourth one — and a fourth saturated hue
+  failed the check anyway. Age and cadence use a single-hue sequential ramp, because age is a
+  magnitude.
+
+**Dark mode works.** The `@custom-variant dark` rule keys off `.dark` on `<html>`, which is what
+`next-themes` writes; the tokens flip and everything that uses them follows, so no component
+carries a `dark:` twin. It is a selected palette, not an inversion. Default is the OS preference.
+
+**Devanagari is a declared face.** Plaud's note and the transcript are Hindi and used to render in
+whatever the device had. `Noto Sans Devanagari` loads through `next/font` and is applied via `.hi`
+/ `:lang(hi)` with `line-height: 1.75` — matras sit above and below the baseline and collide at the
+Latin 1.5. The Hinglish view deliberately does *not* get it: that text is Roman script.
 
 ## Desktop
 
 Same three screens, same routes, same data — laid out for a monitor above the `lg` breakpoint
 (1024px). The far-right panels wait for `xl` (1280px) so a 13" laptop doesn't get four columns.
 
-**The rule: mobile is frozen.** Every desktop style is `lg:`/`xl:`-prefixed, so below 1024px not
+**The rule was: mobile is frozen.** Every desktop style is `lg:`/`xl:`-prefixed, so below 1024px not
 one of them applies. Where a column needed contiguous children, the fix was a wrapper `<div>` with
 no classes of its own — inert in a block layout, a flex/grid child on a monitor — never a reorder.
 Nothing was moved in the DOM, and nothing heavy is rendered twice. The check that this holds is a
 geometry diff: dump the position, size and text of every visible leaf under `<main>` at 390px on
 each page state, before and after; it has to come back empty.
+
+**That rule no longer holds, on purpose, in exactly two places.** The redesign changed mobile
+deliberately, so a geometry diff against the pre-redesign build will *not* come back empty — don't
+treat that as a regression:
+
+1. **Navigation moved to a bottom tab bar** (`components/shell.tsx`, `fixed inset-x-0 bottom-0`,
+   `lg:hidden`). The header tab strip put the two destinations at the far end of a thumb's reach on
+   a screen people hold one-handed all day. `<main>` gained `pb-24` to clear it.
+2. **Type and colour changed everywhere**, because that was the point — nine steps instead of
+   fifteen, real ink colours instead of opacity. Line boxes shifted accordingly, and Hindi text
+   shifted most of all (1.75 line-height, see Design system).
+
+Everything else about the rule stands, and the geometry diff is still the right check *going
+forward*: re-baseline it against the current build and it should come back empty for any further
+desktop-only work.
 
 - `components/shell.tsx` — the mobile header (`lg:hidden`) and a desktop sidebar (`hidden lg:flex`)
   are separate markup. The freshness bar renders twice from the same component, once inline for the
@@ -107,7 +170,12 @@ each page state, before and after; it has to come back empty.
   mount, still collapsible by hand.
 
 `j`/`k` next & previous row · `Enter` open · `x` tick the focused action done · `/` search ·
-`g m` / `g a` navigate · `r` refresh · `?` the list · `Esc` close.
+`g t` / `g m` / `g a` navigate · `r` refresh · `?` the list · `Esc` close.
+
+`⌘K` is separate (`components/command-palette.tsx`) and works at every width, phone included —
+navigation, the overdue and high-priority filters, refresh and the theme switch. It does not index
+meeting titles: that would mean querying the meeting list on every page render to populate a
+palette most visits never open, so searching routes to `/meetings?q=` instead.
 
 ## Meeting continuity
 

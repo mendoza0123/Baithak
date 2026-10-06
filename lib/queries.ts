@@ -237,6 +237,63 @@ export function actionUrgentCounts() {
   ).then((rows) => rows[0] ?? { overdue: 0, high: 0 });
 }
 
+/**
+ * Dated vs undated, open items only. Only 35 of 279 items carry a due_date, which is why
+ * "overdue" can structurally only ever describe a tenth of the backlog — the Today screen
+ * says so out loud rather than letting the overdue number imply full coverage.
+ */
+export async function actionDateCoverage() {
+  const rows = await q<{ dated: number; undated: number }>(
+    `select count(*) filter (where due_date is not null)::int as dated,
+            count(*) filter (where due_date is null)::int as undated
+     from baithak.action_items where status = 'open'`,
+  );
+  return rows[0] ?? { dated: 0, undated: 0 };
+}
+
+export type AgeBuckets = { d7: number; d14: number; d30: number; d60: number; older: number };
+
+/**
+ * How old the open backlog is, measured from the meeting rather than from a due date —
+ * the one staleness signal that covers all of it. Same idea as isStale() in lib/format,
+ * done in SQL so the whole distribution comes back as one row instead of 279.
+ */
+export async function actionAgeBuckets() {
+  const rows = await q<AgeBuckets>(
+    `select count(*) filter (where days <= 7)::int                 as d7,
+            count(*) filter (where days > 7  and days <= 14)::int  as d14,
+            count(*) filter (where days > 14 and days <= 30)::int  as d30,
+            count(*) filter (where days > 30 and days <= 60)::int  as d60,
+            count(*) filter (where days > 60)::int                 as older
+     from (
+       select extract(epoch from (now() - m.recorded_at)) / 86400 as days
+       from baithak.action_items a
+       join baithak.meetings m on m.id = a.meeting_id
+       where a.status = 'open'
+     ) t`,
+  );
+  return rows[0] ?? { d7: 0, d14: 0, d30: 0, d60: 0, older: 0 };
+}
+
+export type CadenceCell = { week: string; dow: number; n: number };
+
+/**
+ * Meetings per IST weekday over the last eight weeks, for the cadence heatmap. Bucketed in
+ * the database at `Asia/Kolkata` rather than in JS, so a 23:30 IST recording lands on the day
+ * the team had it and not on whatever UTC day the server was in.
+ */
+export function meetingCadence() {
+  return q<CadenceCell>(
+    `select to_char(date_trunc('week', (m.recorded_at at time zone 'Asia/Kolkata')), 'YYYY-MM-DD') as week,
+            extract(isodow from (m.recorded_at at time zone 'Asia/Kolkata'))::int as dow,
+            count(*)::int as n
+     from baithak.meetings m
+     where m.recorded_at >= now() - interval '8 weeks'
+     group by 1, 2
+     order by 1, 2`,
+  );
+}
+
 export function openActions(filter: ActionFilter = {}) {
   return q<ActionWithMeeting>(
     `${ACTION_SELECT} ${ACTION_FILTER_WHERE}
