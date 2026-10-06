@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
+import { RotateCw } from "lucide-react";
 
 /**
  * Every page already re-queries the database on every request (force-dynamic, no caching) — a
@@ -20,9 +21,9 @@ export function RefreshButton() {
       disabled={pending}
       title="Refresh"
       aria-label="Refresh"
-      className="rounded-md px-1.5 py-1 text-[15px] leading-none opacity-45 hover:opacity-100 disabled:opacity-100"
+      className="flex size-11 items-center justify-center rounded-control text-ink-3 transition-colors hover:bg-sunken hover:text-ink disabled:text-ink"
     >
-      <span className={pending ? "inline-block animate-spin" : "inline-block"}>↻</span>
+      <RotateCw size={15} strokeWidth={2.25} className={pending ? "animate-spin" : ""} aria-hidden />
     </button>
   );
 }

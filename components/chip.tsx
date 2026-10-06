@@ -18,6 +18,7 @@ export function Chip({
   label,
   count,
   block = false,
+  swatch,
 }: {
   href: string;
   on: boolean;
@@ -25,19 +26,27 @@ export function Chip({
   count: number;
   /** Desktop only: become a full-width rail row with the count pushed right. No mobile effect. */
   block?: boolean;
+  /** Background class for a leading identity square, where the chip names a charted series. */
+  swatch?: string;
 }) {
   return (
     <Link
       href={href}
-      className={`shrink-0 rounded-full border px-3 py-1.5 text-[13px] whitespace-nowrap transition-colors ${
-        block ? "lg:flex lg:w-full lg:items-center lg:justify-between lg:rounded-lg lg:px-2.5 lg:py-[5px] lg:text-[12.5px]" : ""
+      // min-h-9 keeps the tap target at 36px+ in the mobile strip; the desktop
+      // rail row relaxes it since a pointer is driving.
+      className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-support whitespace-nowrap transition-colors ${
+        block ? "lg:flex lg:w-full lg:justify-between lg:rounded-control lg:px-2.5 lg:min-h-8 lg:text-meta" : ""
       } ${
         on
-          ? "border-transparent bg-black text-white dark:bg-white dark:text-black"
-          : "border-black/10 hover:border-black/25 lg:hover:bg-black/[0.04] dark:border-white/12 dark:hover:border-white/30"
+          ? "border-accent bg-accent text-accent-ink"
+          : "border-subtle text-ink-2 hover:border-strong hover:text-ink lg:hover:bg-sunken"
       }`}
     >
-      {label} <span className="opacity-50 tabular-nums">{count}</span>
+      <span className="inline-flex items-center gap-1.5">
+        {swatch ? <span className={`size-2 shrink-0 rounded-[2px] ${swatch}`} aria-hidden /> : null}
+        {label}
+      </span>
+      <span className={`num text-meta ${on ? "text-accent-ink-2" : "text-ink-3"}`}>{count}</span>
     </Link>
   );
 }

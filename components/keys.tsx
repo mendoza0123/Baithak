@@ -10,13 +10,17 @@ import { useEffect, useState } from "react";
  * Row navigation reuses native focus rather than tracking a selected index: j/k just move focus
  * between [data-nav] elements, which makes Enter-to-open, the focus ring and screen-reader
  * announcement free. Anything DOM-hidden (a collapsed day group) is skipped.
+ *
+ * ⌘K lives in command-palette.tsx, not here — it has to work on a phone too.
  */
 const KEYS: [string, string][] = [
+  ["⌘K", "Command palette"],
   ["j / ↓", "Next row"],
   ["k / ↑", "Previous row"],
   ["Enter", "Open the focused row"],
   ["x", "Toggle the focused action done"],
   ["/", "Jump to search"],
+  ["g then t", "Today"],
   ["g then m", "Meetings"],
   ["g then a", "Actions"],
   ["r", "Refresh data"],
@@ -65,7 +69,8 @@ export function Keys() {
 
       if (pendingG) {
         pendingG = false;
-        if (e.key === "m") return router.push("/");
+        if (e.key === "t") return router.push("/");
+        if (e.key === "m") return router.push("/meetings");
         if (e.key === "a") return router.push("/actions");
         return;
       }
@@ -119,28 +124,28 @@ export function Keys() {
 
   return (
     <div
-      className="fixed inset-0 z-50 hidden items-center justify-center bg-black/25 backdrop-blur-[2px] lg:flex"
+      className="fixed inset-0 z-50 hidden items-center justify-center bg-ink/30 backdrop-blur-[2px] lg:flex"
       onClick={() => setHelp(false)}
     >
       <div
-        className="w-[420px] rounded-2xl border border-black/10 bg-white p-5 shadow-2xl"
+        className="w-[420px] rounded-card border border-subtle bg-surface p-5 shadow-[0_16px_48px_rgba(0,0,0,0.22)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-[14px] font-semibold">Keyboard</h2>
-        <dl className="mt-3 grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 text-[13px]">
+        <h2 className="text-body font-semibold text-ink">Keyboard</h2>
+        <dl className="mt-3 grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 text-support">
           {KEYS.map(([k, what]) => (
             <div key={k} className="col-span-2 grid grid-cols-subgrid items-baseline">
               <dt>
                 <kbd>{k}</kbd>
               </dt>
-              <dd className="opacity-65">{what}</dd>
+              <dd className="text-ink-2">{what}</dd>
             </div>
           ))}
         </dl>
         <button
           type="button"
           onClick={() => setHelp(false)}
-          className="mt-4 w-full rounded-lg bg-black py-2 text-[13px] font-medium text-white"
+          className="mt-4 min-h-10 w-full rounded-control bg-accent text-support font-medium text-accent-ink"
         >
           Close
         </button>

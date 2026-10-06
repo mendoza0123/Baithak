@@ -2,12 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Check, Loader2 } from "lucide-react";
 
 type Status = "open" | "done";
 
 /** Marks an action item done or reopens it. Any signed-in team member can use it — checking off
  * a task isn't a distribution decision, it doesn't need the admin gate review used to have. */
-export function ActionStatus({ id, status }: { id: string; status: Status }) {
+export function ActionStatus({ id, status, label }: { id: string; status: Status; label?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,22 +38,38 @@ export function ActionStatus({ id, status }: { id: string; status: Status }) {
 
   return (
     <span className="inline-flex items-center gap-1.5">
+      {/* The 20px box sits inside a 44px hit area via the negative-margin padding,
+          so the tap target clears the touch minimum without changing the layout. */}
       <button
         type="button"
         onClick={toggle}
         disabled={busy}
         data-toggle
         aria-pressed={done}
-        title={done ? "Mark open again" : "Mark done"}
-        className={`flex size-[18px] shrink-0 items-center justify-center rounded-md border text-[11px] leading-none disabled:opacity-50 ${
-          done
-            ? "border-emerald-600 bg-emerald-600 text-white"
-            : "border-black/25 hover:border-black/45"
-        }`}
+        aria-label={
+          label ? `${done ? "Reopen" : "Mark done"}: ${label}` : done ? "Mark open again" : "Mark done"
+        }
+        className="-m-3 flex size-11 items-center justify-center p-3 disabled:cursor-progress"
       >
-        {done ? "✓" : ""}
+        <span
+          className={`flex size-5 shrink-0 items-center justify-center rounded-[5px] border transition-colors ${
+            done
+              ? "border-success bg-success text-accent-ink"
+              : "border-strong hover:border-accent hover:bg-accent-wash"
+          } ${busy ? "opacity-60" : ""}`}
+        >
+          {busy ? (
+            <Loader2 size={12} strokeWidth={3} className="animate-spin" aria-hidden />
+          ) : done ? (
+            <Check size={13} strokeWidth={3.5} aria-hidden />
+          ) : null}
+        </span>
       </button>
-      {error ? <span className="text-[11px] text-red-600">{error}</span> : null}
+      {error ? (
+        <span role="status" className="text-label text-danger">
+          {error}
+        </span>
+      ) : null}
     </span>
   );
 }

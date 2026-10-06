@@ -1,9 +1,23 @@
 import Link from "next/link";
+import { Activity, CheckSquare, FileText, LogOut } from "lucide-react";
 import type { Session } from "@/lib/auth";
 import { RefreshButton } from "@/components/refresh-button";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { CommandPalette } from "@/components/command-palette";
 import { FreshnessBar } from "@/components/freshness-bar";
 import { Keys } from "@/components/keys";
-import { freshness } from "@/lib/queries";
+import { actionUrgentCounts, freshness } from "@/lib/queries";
+
+export type Tab = "today" | "meetings" | "actions" | "detail";
+
+const NAV = [
+  { tab: "today", href: "/", label: "Today", hint: "G T", Icon: Activity },
+  { tab: "meetings", href: "/meetings", label: "Meetings", hint: "G M", Icon: FileText },
+  { tab: "actions", href: "/actions", label: "Actions", hint: "G A", Icon: CheckSquare },
+] as const;
+
+/** A meeting page highlights Meetings — it's where you came from. */
+const forTab = (active: Tab) => (active === "detail" ? "meetings" : active);
 
 export async function Shell({
   session,
@@ -11,52 +25,91 @@ export async function Shell({
   children,
 }: {
   session: Session | null;
-  active: "meetings" | "actions" | "detail";
+  active: Tab;
   children: React.ReactNode;
 }) {
-  const sync = await freshness();
+  const [sync, urgent] = await Promise.all([freshness(), actionUrgentCounts()]);
+  const current = forTab(active);
+
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col lg:mx-0 lg:max-w-none lg:flex-row">
-      {/* Desktop only. Hidden on a phone, so its position in the DOM costs the mobile build
-          nothing — the sticky header below is still what a phone renders. */}
-      <aside className="sticky top-0 hidden h-dvh w-[212px] shrink-0 flex-col border-r border-black/8 bg-white/60 px-3 py-4 lg:flex">
-        <Link href="/" className="px-2 text-[15px] font-semibold tracking-tight">
-          Baithak <span className="opacity-45">Briefs</span>
+      {/* ===================== DESKTOP RAIL ===================== */}
+      <aside className="sticky top-0 hidden h-dvh w-[224px] shrink-0 flex-col border-r border-subtle bg-surface px-3 py-4 lg:flex">
+        <Link href="/" className="px-2 text-prose font-semibold tracking-tight text-ink">
+          Baithak <span className="font-medium text-ink-3">Briefs</span>
         </Link>
-        <p className="mt-0.5 px-2 text-[11px] opacity-40">Linkd Prints · internal</p>
+        <p className="mt-0.5 px-2 text-label text-ink-3">Linkd Prints · internal</p>
 
-        <nav className="mt-5 flex flex-col gap-0.5">
-          <RailLink href="/" label="Meetings" hint="G M" on={active !== "actions"} />
-          <RailLink href="/actions" label="Actions" hint="G A" on={active === "actions"} />
+        <div className="mt-4">
+          <CommandPalette />
+        </div>
+
+        <nav aria-label="Main" className="mt-4 flex flex-col gap-0.5">
+          {NAV.map(({ tab, href, label, hint, Icon }) => {
+            const on = current === tab;
+            return (
+              <Link
+                key={tab}
+                href={href}
+                aria-current={on ? "page" : undefined}
+                className={`group flex min-h-10 items-center gap-2.5 rounded-control px-2 text-support transition-colors ${
+                  on
+                    ? "bg-accent font-medium text-accent-ink"
+                    : "text-ink-2 hover:bg-sunken hover:text-ink"
+                }`}
+              >
+                <Icon size={16} strokeWidth={2} aria-hidden />
+                <span className="flex-1">{label}</span>
+                {tab === "actions" && urgent.overdue > 0 ? (
+                  <span
+                    className={`num text-label font-semibold ${on ? "" : "text-danger"}`}
+                    title={`${urgent.overdue} overdue`}
+                  >
+                    {urgent.overdue}
+                  </span>
+                ) : (
+                  <span
+                    // opacity-0 → 100 here is a hover reveal, not hierarchy.
+                    className={`num text-label ${on ? "text-accent-ink-2" : "text-ink-3 opacity-0 group-hover:opacity-100"}`}
+                    aria-hidden
+                  >
+                    {hint}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="mt-auto flex flex-col gap-2 pt-4">
-          <p className="px-2 text-[11px] opacity-35">
+          <p className="px-2 text-label text-ink-3">
             Press <kbd>?</kbd> for shortcuts
           </p>
           <FreshnessBar
             s={sync}
             /* The run note can be a paragraph; three lines is enough to know something failed. */
-            className="rounded-lg px-2.5 !text-[11px] leading-snug [&>span:last-child]:line-clamp-3"
+            className="rounded-control px-2.5 leading-snug [&>span:last-child]:line-clamp-3"
           />
-          <div className="flex items-center justify-between px-1">
-            <span className="min-w-0 truncate text-[11px] opacity-40" title={session?.email ?? ""}>
+          <div className="flex items-center justify-between gap-1 px-1">
+            <span className="min-w-0 truncate text-label text-ink-3" title={session?.email ?? ""}>
               {session?.email ?? "—"}
             </span>
             <span className="flex shrink-0 items-center">
               {session?.role === "admin" ? (
-                <span className="mr-1 rounded-full bg-amber-500/18 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                <span className="mr-1 rounded-full bg-warning-wash px-1.5 py-0.5 text-label font-semibold text-warning">
                   admin
                 </span>
               ) : null}
+              <ThemeToggle />
               <RefreshButton />
               <form action="/api/logout" method="post">
                 <button
                   type="submit"
-                  className="rounded-md px-1.5 py-1 text-[12px] opacity-45 hover:opacity-100"
+                  aria-label="Sign out"
                   title="Sign out"
+                  className="flex size-11 items-center justify-center rounded-control text-ink-3 transition-colors hover:bg-sunken hover:text-ink"
                 >
-                  Exit
+                  <LogOut size={15} strokeWidth={2.25} aria-hidden />
                 </button>
               </form>
             </span>
@@ -64,67 +117,76 @@ export async function Shell({
         </div>
       </aside>
 
-      <header className="sticky top-0 z-10 border-b border-black/8 bg-[#f6f6f5]/85 backdrop-blur-md lg:hidden">
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <Link href="/" className="shrink-0 text-[15px] font-semibold tracking-tight whitespace-nowrap">
-            Baithak <span className="opacity-45">Briefs</span>
+      {/* ===================== MOBILE HEADER ===================== */}
+      <header className="sticky top-0 z-10 border-b border-subtle bg-canvas/90 backdrop-blur-md lg:hidden">
+        <div className="flex items-center justify-between gap-2 px-4 py-1.5">
+          <Link href="/" className="shrink-0 text-prose font-semibold tracking-tight whitespace-nowrap text-ink">
+            Baithak <span className="font-medium text-ink-3">Briefs</span>
           </Link>
-          <div className="flex items-center text-[12.5px]">
-            <Tab href="/" label="Meetings" on={active !== "actions"} />
-            <Tab href="/actions" label="Actions" on={active === "actions"} />
+          <div className="flex items-center">
             {session?.role === "admin" ? (
-              <span className="ml-1 rounded-full bg-amber-500/18 px-1.5 py-0.5 text-[10.5px] font-medium text-amber-700">
+              <span className="mr-1 rounded-full bg-warning-wash px-1.5 py-0.5 text-label font-semibold text-warning">
                 admin
               </span>
             ) : null}
+            <CommandPalette variant="icon" />
+            <ThemeToggle />
             <RefreshButton />
-            <form action="/api/logout" method="post" className="ml-0.5">
+            <form action="/api/logout" method="post">
               <button
                 type="submit"
-                className="rounded-md px-2 py-1 text-[13px] opacity-45 hover:opacity-100"
+                aria-label="Sign out"
                 title={session ? `Signed in as ${session.email} — sign out` : "Sign out"}
+                className="flex size-11 items-center justify-center rounded-control text-ink-3 transition-colors hover:bg-sunken hover:text-ink"
               >
-                Exit
+                <LogOut size={16} strokeWidth={2.25} aria-hidden />
               </button>
             </form>
           </div>
         </div>
       </header>
+
       {/* Outside the sticky header on purpose — it's a status line you read once, not a control
           worth pinning to the top of every screen while you scroll. On desktop it lives in the
           rail instead, where there is room for it to sit permanently. */}
       <div className="lg:hidden">
         <FreshnessBar s={sync} />
       </div>
-      <main className="flex-1 px-4 pt-4 pb-16 lg:min-w-0 lg:px-6 lg:pt-6 lg:pb-10">{children}</main>
+
+      {/* pb-24 clears the bottom tab bar; the desktop padding is unchanged. */}
+      <main className="flex-1 px-4 pt-4 pb-24 lg:min-w-0 lg:px-6 lg:pt-6 lg:pb-10">{children}</main>
+
+      {/* ===================== MOBILE BOTTOM TABS ===================== */}
+      {/* Navigation belongs within thumb reach. Three top-level destinations, well
+          under the five-item ceiling, each a 56px target. */}
+      <nav
+        aria-label="Main"
+        className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-3 border-t border-subtle bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
+      >
+        {NAV.map(({ tab, href, label, Icon }) => {
+          const on = current === tab;
+          return (
+            <Link
+              key={tab}
+              href={href}
+              aria-current={on ? "page" : undefined}
+              className={`relative flex min-h-14 flex-col items-center justify-center gap-0.5 ${
+                on ? "text-accent" : "text-ink-3"
+              }`}
+            >
+              <Icon size={20} strokeWidth={2} aria-hidden />
+              <span className={`text-label ${on ? "font-semibold" : ""}`}>{label}</span>
+              {tab === "actions" && urgent.overdue > 0 ? (
+                <span className="num absolute top-1.5 left-1/2 ml-2 rounded-full bg-danger px-1.5 text-label font-semibold text-accent-ink">
+                  {urgent.overdue}
+                </span>
+              ) : null}
+            </Link>
+          );
+        })}
+      </nav>
+
       <Keys />
     </div>
-  );
-}
-
-function Tab({ href, label, on }: { href: string; label: string; on: boolean }) {
-  return (
-    <Link
-      href={href}
-      className={`rounded-md px-2 py-1 ${on ? "font-medium" : "opacity-45 hover:opacity-100"}`}
-    >
-      {label}
-    </Link>
-  );
-}
-
-function RailLink({ href, label, hint, on }: { href: string; label: string; hint: string; on: boolean }) {
-  return (
-    <Link
-      href={href}
-      className={`group flex items-center justify-between rounded-lg px-2 py-1.5 text-[13px] transition-colors ${
-        on ? "bg-black text-white" : "opacity-60 hover:bg-black/[0.05] hover:opacity-100"
-      }`}
-    >
-      {label}
-      <span className={`text-[10px] tabular-nums ${on ? "opacity-45" : "opacity-0 group-hover:opacity-35"}`}>
-        {hint}
-      </span>
-    </Link>
   );
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeft, ArrowRight, Clock } from "lucide-react";
 import { statusLabel } from "@/components/badges";
 import { dueLabel, ist, istDateKey } from "@/lib/format";
 import type { ActionWithMeeting, MeetingRow, Status } from "@/lib/queries";
@@ -19,10 +20,14 @@ export function MeetingRail({ meetings, currentId }: { meetings: MeetingRow[]; c
   return (
     <aside className="sticky top-6 hidden max-h-[calc(100dvh-3rem)] w-[250px] shrink-0 flex-col overflow-y-auto lg:flex">
       <div className="mb-2 flex items-baseline justify-between px-1">
-        <Link href="/" className="text-[12px] font-semibold opacity-60 hover:opacity-100">
-          &larr; All meetings
+        <Link
+          href="/meetings"
+          className="flex items-center gap-1 text-meta font-semibold text-ink-2 hover:text-ink"
+        >
+          <ArrowLeft size={12} strokeWidth={2.5} aria-hidden />
+          All meetings
         </Link>
-        <span className="text-[11px] tabular-nums opacity-35">{meetings.length}</span>
+        <span className="num text-label text-ink-3">{meetings.length}</span>
       </div>
       <ol className="flex flex-col gap-0.5 pb-2">
         {meetings.map((m) => {
@@ -32,16 +37,17 @@ export function MeetingRail({ meetings, currentId }: { meetings: MeetingRow[]; c
               <Link
                 href={`/m/${m.id}`}
                 data-nav
-                className={`block rounded-lg px-2 py-1.5 transition-colors ${
-                  on ? "bg-black text-white" : "hover:bg-black/[0.05]"
+                aria-current={on ? "page" : undefined}
+                className={`block rounded-control px-2 py-1.5 transition-colors ${
+                  on ? "bg-accent text-accent-ink" : "hover:bg-sunken"
                 }`}
               >
-                <span className={`block truncate text-[12.5px] leading-snug ${on ? "" : "opacity-80"}`}>
+                <span className={`block truncate text-meta leading-snug ${on ? "" : "text-ink"}`}>
                   {m.title_en || m.title_original || "Untitled recording"}
                 </span>
                 <span
-                  className={`mt-0.5 flex items-center gap-1.5 text-[10.5px] tabular-nums ${
-                    on ? "opacity-55" : "opacity-40"
+                  className={`num mt-0.5 flex items-center gap-1.5 text-label ${
+                    on ? "text-accent-ink-2" : "text-ink-3"
                   }`}
                 >
                   {ist(m.recorded_at)}
@@ -56,17 +62,22 @@ export function MeetingRail({ meetings, currentId }: { meetings: MeetingRow[]; c
   );
 }
 
-/* ---------------------------------------------------------------- command deck (/) */
+/* ---------------------------------------------------------------- command deck (/meetings) */
 
+/**
+ * Pipeline segment colours. Status tokens only — these are states, so they never
+ * borrow a categorical series hue, and everything that isn't good/warning/bad
+ * stays neutral rather than inventing a colour for it.
+ */
 const BAR: Partial<Record<Status, string>> = {
-  awaiting_approval: "bg-amber-500",
-  ready: "bg-emerald-500",
-  emailed: "bg-emerald-600",
-  failed: "bg-red-500",
-  summarising: "bg-slate-400",
-  pending_transcript: "bg-slate-300",
-  discovered: "bg-slate-500",
-  skipped: "bg-zinc-300",
+  awaiting_approval: "bg-warning",
+  ready: "bg-success",
+  emailed: "bg-success",
+  failed: "bg-danger",
+  summarising: "bg-strong",
+  pending_transcript: "bg-strong",
+  discovered: "bg-strong",
+  skipped: "bg-subtle",
 };
 
 export function CommandDeck({
@@ -113,26 +124,31 @@ export function CommandDeck({
 
       <Panel title="Pipeline">
         {segments.length > 0 && total > 0 ? (
-          <div className="mt-2 flex h-1.5 w-full overflow-hidden rounded-full bg-black/5">
+          <div className="mt-2 flex h-1.5 w-full gap-[2px] overflow-hidden rounded-full bg-sunken">
             {segments.map(([s, n]) => (
               <span
                 key={s}
                 title={`${statusLabel(s)} — ${n}`}
-                className={BAR[s] ?? "bg-zinc-400"}
+                className={`${BAR[s] ?? "bg-strong"} first:rounded-l-full last:rounded-r-full`}
                 style={{ width: `${(n / total) * 100}%` }}
               />
             ))}
           </div>
         ) : null}
-        <ul className="mt-2.5 flex flex-col gap-1 text-[12px]">
-          <DeckRow label="Still processing" value={inFlight} href="/?status=summarising" />
+        <ul className="mt-2.5 flex flex-col gap-1 text-meta">
+          <DeckRow label="Still processing" value={inFlight} href="/meetings?status=summarising" />
           <DeckRow
             label="Awaiting approval"
             value={awaiting}
-            href="/?status=awaiting_approval"
-            tone={awaiting ? "amber" : undefined}
+            href="/meetings?status=awaiting_approval"
+            tone={awaiting ? "warning" : undefined}
           />
-          <DeckRow label="Failed" value={failed} href="/?status=failed" tone={failed ? "red" : undefined} />
+          <DeckRow
+            label="Failed"
+            value={failed}
+            href="/meetings?status=failed"
+            tone={failed ? "danger" : undefined}
+          />
         </ul>
       </Panel>
 
@@ -143,12 +159,17 @@ export function CommandDeck({
               <li key={a.id}>
                 <Link
                   href={`/m/${a.meeting_id}`}
-                  className="block rounded-lg px-1.5 py-1 transition-colors hover:bg-black/[0.04]"
+                  className="block rounded-control px-1.5 py-1 transition-colors hover:bg-sunken"
                 >
-                  <span className="line-clamp-2 block text-[12px] leading-snug">{a.description}</span>
-                  <span className="mt-0.5 flex items-center gap-1.5 text-[10.5px]">
-                    <span className="font-medium tabular-nums text-red-700">due {dueLabel(a.due_date)}</span>
-                    <span className="truncate opacity-40">{a.owner || "unassigned"}</span>
+                  <span className="line-clamp-2 block text-meta leading-snug text-ink">
+                    {a.description}
+                  </span>
+                  <span className="mt-0.5 flex items-center gap-1.5 text-label">
+                    <span className="num flex items-center gap-1 font-semibold text-danger">
+                      <Clock size={10} strokeWidth={3} aria-hidden />
+                      due {dueLabel(a.due_date)}
+                    </span>
+                    <span className="truncate text-ink-3">{a.owner || "unassigned"}</span>
                   </span>
                 </Link>
               </li>
@@ -156,9 +177,10 @@ export function CommandDeck({
           </ul>
           <Link
             href="/actions?urgent=overdue"
-            className="mt-2 block text-[11.5px] underline underline-offset-2 opacity-50 hover:opacity-100"
+            className="mt-2 flex items-center gap-1 text-label text-accent underline underline-offset-2"
           >
-            All overdue &rarr;
+            All overdue
+            <ArrowRight size={11} strokeWidth={2.5} aria-hidden />
           </Link>
         </Panel>
       ) : null}
@@ -169,7 +191,10 @@ export function CommandDeck({
 /* ------------------------------------------------------------- owner panel (/actions) */
 
 /** Who is carrying what, straight off the list already on screen — no extra query, and it
- * re-counts under whatever filter is active, which is the useful behaviour. */
+ * re-counts under whatever filter is active, which is the useful behaviour.
+ *
+ * `owner` is free text the pipeline writes from what it heard, so the names here are spellings,
+ * not people — see the note this panel renders above itself on /actions. */
 export function OwnerPanel({
   items,
   hrefFor,
@@ -197,26 +222,37 @@ export function OwnerPanel({
 
   return (
     <aside className="sticky top-6 hidden max-h-[calc(100dvh-3rem)] w-[268px] shrink-0 flex-col gap-3 overflow-y-auto xl:flex">
-      <Panel title={`Owners · ${view === "open" ? "open" : "completed"}`}>
+      <Panel title={`Owner spellings · ${view === "open" ? "open" : "completed"}`}>
+        <p className="mt-1 text-label leading-snug text-ink-3">
+          {tally.size} distinct values across {items.length} items — free text, so one person can
+          appear several times.
+        </p>
         <ul className="mt-2 flex flex-col gap-1.5">
           {owners.map(([owner, row]) => (
             <li key={owner}>
               <Link
                 href={hrefFor(owner === "Unassigned" ? "" : owner)}
-                className="block rounded-md px-1 py-0.5 transition-colors hover:bg-black/[0.04]"
+                className="block rounded-control px-1 py-0.5 transition-colors hover:bg-sunken"
               >
-                <span className="flex items-baseline justify-between gap-2 text-[12px]">
-                  <span className={`truncate ${owner === "Unassigned" ? "opacity-45" : ""}`}>{owner}</span>
-                  <span className="shrink-0 tabular-nums opacity-45">
-                    {row.overdue ? <span className="mr-1 text-red-700">{row.overdue} late</span> : null}
+                <span className="flex items-baseline justify-between gap-2 text-meta">
+                  <span className={`truncate ${owner === "Unassigned" ? "text-ink-3" : "text-ink"}`}>
+                    {owner}
+                  </span>
+                  <span className="num shrink-0 text-ink-2">
+                    {row.overdue ? (
+                      <span className="mr-1 font-semibold text-danger">{row.overdue} late</span>
+                    ) : null}
                     {row.n}
                   </span>
                 </span>
                 {/* One bar, two parts: how much of this owner's pile is already late. */}
-                <span className="mt-1 flex h-1 w-full overflow-hidden rounded-full bg-black/5">
-                  <span className="bg-red-500/75" style={{ width: `${(row.overdue / top) * 100}%` }} />
+                <span className="mt-1 flex h-1 w-full gap-[2px] overflow-hidden rounded-full bg-sunken">
                   <span
-                    className="bg-black/30"
+                    className="rounded-l-full bg-danger"
+                    style={{ width: `${(row.overdue / top) * 100}%` }}
+                  />
+                  <span
+                    className="rounded-r-full bg-strong"
                     style={{ width: `${((row.n - row.overdue) / top) * 100}%` }}
                   />
                 </span>
@@ -228,9 +264,9 @@ export function OwnerPanel({
 
       {view === "open" ? (
         <Panel title="Dates">
-          <ul className="mt-2 flex flex-col gap-1 text-[12px]">
-            <DeckRow label="Past due" value={overdue} tone={overdue ? "red" : undefined} />
-            <DeckRow label="No due date" value={noDate} />
+          <ul className="mt-2 flex flex-col gap-1 text-meta">
+            <DeckRow label="Past due" value={overdue} tone={overdue ? "danger" : undefined} />
+            <DeckRow label="No due date" value={noDate} tone={noDate ? "warning" : undefined} />
             <DeckRow label="Dated, still in time" value={items.length - overdue - noDate} />
           </ul>
         </Panel>
@@ -243,8 +279,8 @@ export function OwnerPanel({
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-xl border border-black/8 bg-white p-3">
-      <h2 className="text-[11px] font-semibold tracking-wide uppercase opacity-40">{title}</h2>
+    <section className="rounded-card border border-subtle bg-surface p-3">
+      <h2 className="eyebrow">{title}</h2>
       {children}
     </section>
   );
@@ -265,18 +301,18 @@ function Stat({
 }) {
   const body = (
     <>
-      <span className="block text-[10.5px] font-semibold tracking-wide uppercase opacity-40">{label}</span>
+      <span className="eyebrow block">{label}</span>
       <span
-        className={`mt-0.5 block text-[24px] leading-none font-semibold tabular-nums ${alarm ? "text-red-700" : ""}`}
+        className={`num mt-1 block text-section leading-none font-medium ${alarm ? "text-danger" : "text-ink"}`}
       >
         {value}
       </span>
-      <span className="mt-1 block truncate text-[10.5px] opacity-40">{sub}</span>
+      <span className="mt-1 block truncate text-label text-ink-3">{sub}</span>
     </>
   );
-  const cls = "block rounded-xl border border-black/8 bg-white p-2.5 transition-colors";
+  const cls = "block rounded-card border border-subtle bg-surface p-2.5 transition-colors";
   return href ? (
-    <Link href={href} className={`${cls} hover:border-black/25`}>
+    <Link href={href} className={`${cls} hover:border-strong`}>
       {body}
     </Link>
   ) : (
@@ -293,13 +329,13 @@ function DeckRow({
   label: string;
   value: number;
   href?: string;
-  tone?: "amber" | "red";
+  tone?: "warning" | "danger";
 }) {
-  const colour = tone === "red" ? "text-red-700" : tone === "amber" ? "text-amber-700" : "";
+  const colour = tone === "danger" ? "text-danger" : tone === "warning" ? "text-warning" : "text-ink";
   const inner = (
     <>
-      <span className={value ? "" : "opacity-40"}>{label}</span>
-      <span className={`tabular-nums ${value ? `font-medium ${colour}` : "opacity-35"}`}>{value}</span>
+      <span className={value ? "text-ink-2" : "text-ink-3"}>{label}</span>
+      <span className={`num ${value ? `font-semibold ${colour}` : "text-ink-3"}`}>{value}</span>
     </>
   );
   return (
@@ -307,7 +343,7 @@ function DeckRow({
       {href && value ? (
         <Link
           href={href}
-          className="flex items-baseline justify-between rounded-md px-1 py-0.5 hover:bg-black/[0.04]"
+          className="flex items-baseline justify-between rounded-control px-1 py-0.5 hover:bg-sunken"
         >
           {inner}
         </Link>

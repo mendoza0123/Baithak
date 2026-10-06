@@ -66,10 +66,14 @@ export function GoogleSignIn({ clientId }: { clientId: string }) {
   return (
     <div>
       <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" onReady={render} />
-      <div ref={slot} className="flex min-h-[44px] justify-center" />
-      {busy ? <p className="mt-2 text-center text-[13px] opacity-50">Checking…</p> : null}
+      <div ref={slot} className="flex min-h-11 justify-center" />
+      {busy ? (
+        <p role="status" className="mt-2.5 text-center text-support text-ink-2">
+          Checking…
+        </p>
+      ) : null}
       {error ? (
-        <p role="alert" className="mt-2 text-center text-[13px] text-red-600">
+        <p role="alert" className="mt-2.5 text-center text-support text-danger">
           {error}
         </p>
       ) : null}
