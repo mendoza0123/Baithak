@@ -107,3 +107,40 @@ test("gap() coarsens as the wait grows, and refuses nonsense", async () => {
   assert.equal(gap(null, "2026-09-01T00:00:00Z"), null);
   assert.equal(gap("2026-09-02T00:00:00Z", "2026-09-01T00:00:00Z"), null);
 });
+
+test("IST week starts on Monday, even when UTC is still on Sunday", async () => {
+  const { istWeekStart } = await import("./format.ts");
+
+  // 2026-10-11 is a Sunday IST, 2026-10-12 the Monday after it.
+  assert.equal(istWeekStart("2026-10-12T06:00:00Z"), "2026-10-12", "a Monday is its own week start");
+  assert.equal(istWeekStart("2026-10-11T06:00:00Z"), "2026-10-05", "Sunday belongs to the week before");
+  assert.equal(istWeekStart("2026-10-06T06:00:00Z"), "2026-10-05", "Tuesday rolls back to Monday");
+
+  // The whole point of bucketing in IST: 19:00 UTC on Sunday is already 00:30 Monday in Kolkata,
+  // so this instant belongs to the NEW week, not the one UTC thinks it is in.
+  assert.equal(istWeekStart("2026-10-11T19:00:00Z"), "2026-10-12");
+
+  // And the mirror case — 18:00 UTC Sunday is 23:30 IST Sunday, still the old week.
+  assert.equal(istWeekStart("2026-10-11T18:00:00Z"), "2026-10-05");
+});
+
+test("week arithmetic survives month and year boundaries", async () => {
+  const { shiftWeek, weekDays, weekLabel } = await import("./format.ts");
+
+  assert.equal(shiftWeek("2026-10-05", 1), "2026-10-12");
+  assert.equal(shiftWeek("2026-10-05", -1), "2026-09-28", "back across a month end");
+  assert.equal(shiftWeek("2026-12-28", 1), "2027-01-04", "forward across a year end");
+  assert.equal(shiftWeek("2026-10-05", 0), "2026-10-05");
+
+  const days = weekDays("2026-12-28");
+  assert.equal(days.length, 7);
+  assert.equal(days[0], "2026-12-28");
+  assert.equal(days[6], "2027-01-03", "the seventh day crosses into the next year");
+
+  // The label collapses a shared month, and keeps both when the week straddles one.
+  // "Sept" rather than "Sep" is en-GB's own short form — ist() and dayLabel() already
+  // render it that way, so matching them is the consistent choice.
+  assert.equal(weekLabel("2026-10-05"), "5 — 11 Oct 2026");
+  assert.equal(weekLabel("2026-09-28"), "28 Sept — 4 Oct 2026");
+  assert.equal(weekLabel("2026-12-28"), "28 Dec 2026 — 3 Jan 2027");
+});

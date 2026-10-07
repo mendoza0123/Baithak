@@ -84,6 +84,70 @@ export function istDateKey(d: Date | string) {
   return isoDate.format(typeof d === "string" ? new Date(d) : d);
 }
 
+/**
+ * Monday of the IST week containing `d`, as 'YYYY-MM-DD'.
+ *
+ * The arithmetic runs on a date-only UTC value rather than the original instant: once
+ * istDateKey() has told us which IST calendar day this is, stepping back to Monday must not
+ * be able to cross a day boundary again, which local-time maths on a Date can do.
+ */
+export function istWeekStart(d: Date | string = new Date()) {
+  const [y, m, day] = istDateKey(d).split("-").map(Number);
+  const at = new Date(Date.UTC(y, m - 1, day));
+  at.setUTCDate(at.getUTCDate() - ((at.getUTCDay() + 6) % 7)); // getUTCDay: 0 = Sunday
+  return at.toISOString().slice(0, 10);
+}
+
+/** Step a 'YYYY-MM-DD' week start by whole weeks. Negative goes back. */
+export function shiftWeek(weekStart: string, weeks: number) {
+  const [y, m, d] = weekStart.split("-").map(Number);
+  const at = new Date(Date.UTC(y, m - 1, d));
+  at.setUTCDate(at.getUTCDate() + weeks * 7);
+  return at.toISOString().slice(0, 10);
+}
+
+/** The seven IST days of a week, as 'YYYY-MM-DD' keys, Monday first. */
+export function weekDays(weekStart: string) {
+  return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+}
+
+function addDays(from: string, days: number) {
+  const [y, m, d] = from.split("-").map(Number);
+  const at = new Date(Date.UTC(y, m - 1, d));
+  at.setUTCDate(at.getUTCDate() + days);
+  return at.toISOString().slice(0, 10);
+}
+
+/** "5 — 11 Oct 2026", collapsing the month and year when both ends share them. */
+export function weekLabel(weekStart: string) {
+  const end = addDays(weekStart, 6);
+  const [sy, sm, sd] = weekStart.split("-").map(Number);
+  const [ey, em, ed] = end.split("-").map(Number);
+  const mon = (mm: number, yy: number) =>
+    new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric", timeZone: "UTC" }).format(
+      new Date(Date.UTC(yy, mm - 1, 1)),
+    );
+  if (sy === ey && sm === em) return `${sd} — ${ed} ${mon(em, ey)}`;
+  if (sy === ey) return `${sd} ${mon(sm, sy).split(" ")[0]} — ${ed} ${mon(em, ey)}`;
+  return `${sd} ${mon(sm, sy)} — ${ed} ${mon(em, ey)}`;
+}
+
+/** "Mon", for a 'YYYY-MM-DD' key. */
+export function weekdayShort(dateKey: string) {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "UTC" }).format(
+    new Date(Date.UTC(y, m - 1, d)),
+  );
+}
+
+/** "5 Oct", for a 'YYYY-MM-DD' key. */
+export function dayMonth(dateKey: string) {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).format(
+    new Date(Date.UTC(y, m - 1, d)),
+  );
+}
+
 /** "Wed 26 Aug 2026" — a date-only version of ist(), for grouping headers. */
 export function dayLabel(d: Date | string) {
   return dayWithYear.format(typeof d === "string" ? new Date(d) : d);

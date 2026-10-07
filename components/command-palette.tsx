@@ -7,6 +7,7 @@ import { useTheme } from "next-themes";
 import {
   Activity,
   AlertTriangle,
+  CalendarRange,
   CheckSquare,
   FileText,
   Hourglass,
@@ -25,7 +26,14 @@ import {
  * keys.tsx keeps the j/k row navigation; this replaces the g-m / g-a jumps and
  * the hand-rolled "?" sheet for anyone who reaches for ⌘K first.
  */
-export function CommandPalette({ variant = "rail" }: { variant?: "rail" | "icon" }) {
+export function CommandPalette({
+  variant = "rail",
+  isAdmin = false,
+}: {
+  variant?: "rail" | "icon";
+  /** Keeps /md out of the palette for a member, matching the nav. The page re-checks anyway. */
+  isAdmin?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const router = useRouter();
@@ -109,6 +117,12 @@ export function CommandPalette({ variant = "rail" }: { variant?: "rail" | "icon"
             ) : null}
 
             <Command.Group heading="Go to" className="px-1.5 pb-1 text-label text-ink-3">
+              {isAdmin ? (
+                <Item onSelect={() => go("/md")}>
+                  <CalendarRange size={15} strokeWidth={2} aria-hidden />
+                  My week
+                </Item>
+              ) : null}
               <Item onSelect={() => go("/")}>
                 <Activity size={15} strokeWidth={2} aria-hidden />
                 Today

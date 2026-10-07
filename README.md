@@ -14,9 +14,18 @@ included. The function still exists in the database; nothing here calls it.
 ```bash
 npm install
 cp .env.example .env.local   # fill in the real values
-npm run dev                  # or: npm run build && npm start
+npm run dev                  # http://localhost:3200
 npm test                     # node --test, no framework
 ```
+
+**The dev port is pinned to 3200** (`next dev -p 3200`), not left on Next's default 3000. With
+several Next apps on one machine, `next dev` silently falls through to 3001, 3002… and you end up
+looking at a different project on localhost:3000 and concluding this one is broken. A fixed port
+also means `http://localhost:3200` can stay in the Google client's authorised origins permanently.
+
+`AUTH_SECRET` is the only variable the app needs to merely boot. Missing `GOOGLE_CLIENT_ID` is
+handled on purpose — `/login` renders and says so rather than failing silently — but a missing
+`DATABASE_URL` throws on any page that queries, which is every page past the gate.
 
 ## The gate — two steps
 
@@ -35,7 +44,7 @@ want it, not because anything currently checks it.
 1. console.cloud.google.com → **APIs & Services → Credentials → Create credentials → OAuth client ID**
 2. Application type **Web application**.
 3. **Authorised JavaScript origins** — add every origin the app is served from:
-   `http://localhost:3100` and `https://<your-vercel-domain>`.
+   `http://localhost:3200` (the port `npm run dev` pins) and `https://<your-vercel-domain>`.
 4. Copy the **Client ID** into `GOOGLE_CLIENT_ID`. There is no client secret to copy — this uses the
    ID-token flow, and the client ID is public by design (it ships in the page).
 
@@ -92,6 +101,30 @@ URL params, so `/meetings?status=failed&type=mis` behaves exactly as `/?status=�
 
 Every count on Today is an aggregate read (`actionDateCoverage`, `actionAgeBuckets`,
 `meetingCadence` in `lib/queries.ts`). Nothing there pulls rows into JS to count them.
+
+**`/md` is "My week"** — an executive view, week-navigable with `?w=YYYY-MM-DD` (an IST Monday):
+the week's meetings and whether their briefs landed, every decision and open issue from those
+briefs, the commitments they produced (All / Unassigned / Overdue), and opened-vs-closed per week
+over the last twelve.
+
+It is gated on the **`admin` role**, which already carries its own password (`ADMIN_CODE`) — so
+there is no list of people and no new role anywhere. This is the first thing that actually
+checks the role rather than just painting the badge. The page returns **404, not 403**, for a
+member: a route a member cannot use is a route they do not need to learn about.
+
+Two honest limits, both stated on the page itself rather than implied:
+
+- **It shows recorded meetings, not a schedule.** There is no event or attendee data in this
+  schema, so "the week" means what was captured. A forward-looking schedule needs
+  `baithak.calendar_events` and a sync job to fill it.
+- **It is not yet personal.** Without attendee data there is no way to know which meetings a
+  given signed-in person was in, so the week is the whole company's. The session email is
+  already the right key for it — only the attendance table is missing.
+
+`commitmentFlow()` dates "opened" from the **meeting**, not from a row timestamp: a commitment is
+made when it is said out loud, and `action_items` has no insertion column that can be relied on.
+"Closed" uses `updated_at`, the column the toggle touches and the one `completedActions()`
+already orders by.
 
 ## Design system
 
