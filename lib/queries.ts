@@ -313,6 +313,149 @@ export function completedActions(filter: Omit<ActionFilter, "urgent"> = {}) {
   );
 }
 
+/* ============================================================================
+   The MD tab (/md). Week-scoped reads over the same four tables — no schema
+   change, no new grants.
+   ============================================================================ */
+
+/**
+ * An IST week is [weekStart 00:00, weekStart+7 00:00) in Asia/Kolkata, bucketed in the
+ * database rather than in JS so a 23:30 IST recording lands on the day the team had it.
+ * `$1` is a 'YYYY-MM-DD' Monday from istWeekStart() / shiftWeek().
+ */
+const IST_WEEK = `
+  m.recorded_at >= ($1::date)::timestamp at time zone 'Asia/Kolkata'
+  and m.recorded_at < (($1::date) + 7)::timestamp at time zone 'Asia/Kolkata'`;
+
+export type WeekMeeting = MeetingRow & {
+  /** A brief exists for the latest summary version — not just a summaries row. */
+  briefed: boolean;
+  decisions: number;
+  issues: number;
+};
+
+/** Every meeting recorded in one IST week, with whether its brief landed. */
+export function weekMeetings(weekStart: string) {
+  return q<WeekMeeting>(
+    `select m.id, m.title_en, m.title_original, m.meeting_type, m.status, m.status_reason,
+            m.recorded_at, m.duration_sec, m.sensitive,
+            s.brief->>'executive_summary' as gist,
+            (s.summary_md is not null) as briefed,
+            coalesce(jsonb_array_length(
+              case when jsonb_typeof(s.brief->'decisions') = 'array'
+                   then s.brief->'decisions' else '[]'::jsonb end), 0) as decisions,
+            coalesce(jsonb_array_length(
+              case when jsonb_typeof(s.brief->'open_issues') = 'array'
+                   then s.brief->'open_issues' else '[]'::jsonb end), 0) as issues,
+            (select count(*)::int from baithak.action_items a
+              where a.meeting_id = m.id and a.status = 'open') as open_actions
+     from baithak.meetings m ${LATEST_SUMMARY}
+     where ${IST_WEEK}
+     order by m.recorded_at`,
+    [weekStart],
+  );
+}
+
+export type Takeaway = {
+  meeting_id: string;
+  title_en: string | null;
+  title_original: string | null;
+  recorded_at: Date;
+  meeting_type: MeetingType;
+  kind: "decision" | "issue" | "agenda";
+  text: string;
+};
+
+/**
+ * Every decision, open issue and next-agenda line from the week's briefs, flattened.
+ *
+ * The pipeline already writes these into `summaries.brief`; this just unnests them so the
+ * week reads as one list instead of one meeting at a time. The jsonb_typeof guard matters —
+ * jsonb_array_elements_text() raises on a non-array, and `brief` is model output.
+ */
+export function weekTakeaways(weekStart: string) {
+  return q<Takeaway>(
+    `select m.id as meeting_id, m.title_en, m.title_original, m.recorded_at, m.meeting_type,
+            k.kind, k.text
+     from baithak.meetings m
+     join lateral (
+       select * from baithak.summaries s
+       where s.meeting_id = m.id order by s.version desc limit 1
+     ) s on true
+     cross join lateral (
+       select 'decision' as kind, jsonb_array_elements_text(
+         case when jsonb_typeof(s.brief->'decisions') = 'array'
+              then s.brief->'decisions' else '[]'::jsonb end) as text
+       union all
+       select 'issue', jsonb_array_elements_text(
+         case when jsonb_typeof(s.brief->'open_issues') = 'array'
+              then s.brief->'open_issues' else '[]'::jsonb end)
+       union all
+       select 'agenda', jsonb_array_elements_text(
+         case when jsonb_typeof(s.brief->'next_meeting_agenda') = 'array'
+              then s.brief->'next_meeting_agenda' else '[]'::jsonb end)
+     ) k
+     where ${IST_WEEK}
+     order by m.recorded_at desc
+     limit 200`,
+    [weekStart],
+  );
+}
+
+/** Every action item raised in the week's meetings, open first. */
+export function weekActions(weekStart: string) {
+  return q<ActionWithMeeting>(
+    `select a.id, a.meeting_id, a.description, a.owner,
+            to_char(a.due_date, 'YYYY-MM-DD') as due_date,
+            a.priority, a.status, a.source_ms, a.status_note,
+            m.title_en, m.title_original, m.recorded_at, m.meeting_type
+     from baithak.action_items a
+     join baithak.meetings m on m.id = a.meeting_id
+     where ${IST_WEEK}
+     order by (a.status = 'open') desc, a.priority = 'high' desc,
+              a.due_date nulls last, m.recorded_at desc
+     limit 400`,
+    [weekStart],
+  );
+}
+
+export type FlowWeek = { week: string; opened: number; closed: number };
+
+/**
+ * Commitments opened vs closed, per IST week, over a trailing window.
+ *
+ * "Opened" is dated from the *meeting*, not from a row timestamp: a commitment is made when
+ * it is said out loud, and action_items has no column that reliably records insertion anyway.
+ * "Closed" uses updated_at, which is what the toggle touches — the same column completedActions
+ * already orders by.
+ *
+ * The gap between the two lines is the backlog growing or shrinking, which is the one number
+ * that says whether the meetings are working.
+ */
+export function commitmentFlow(weeks = 12) {
+  return q<FlowWeek>(
+    `with wk as (
+       select generate_series(
+         date_trunc('week', (now() at time zone 'Asia/Kolkata')) - (($1::int - 1) * interval '1 week'),
+         date_trunc('week', (now() at time zone 'Asia/Kolkata')),
+         interval '1 week'
+       )::date as w
+     )
+     select to_char(wk.w, 'YYYY-MM-DD') as week,
+            (select count(*)::int
+               from baithak.action_items a
+               join baithak.meetings m on m.id = a.meeting_id
+              where date_trunc('week', (m.recorded_at at time zone 'Asia/Kolkata'))::date = wk.w) as opened,
+            (select count(*)::int
+               from baithak.action_items a
+              where a.status = 'done'
+                and date_trunc('week', (a.updated_at at time zone 'Asia/Kolkata'))::date = wk.w) as closed
+     from wk
+     order by wk.w`,
+    [weeks],
+  );
+}
+
 /**
  * The only write this app makes. set_action_status is a SECURITY DEFINER function on
  * baithak_app's grant list — the database enforces which transitions are legal, this is

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, CheckSquare, FileText, LogOut } from "lucide-react";
+import { Activity, CalendarRange, CheckSquare, FileText, LogOut } from "lucide-react";
 import type { Session } from "@/lib/auth";
 import { RefreshButton } from "@/components/refresh-button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -8,13 +8,22 @@ import { FreshnessBar } from "@/components/freshness-bar";
 import { Keys } from "@/components/keys";
 import { actionUrgentCounts, freshness } from "@/lib/queries";
 
-export type Tab = "today" | "meetings" | "actions" | "detail";
+export type Tab = "md" | "today" | "meetings" | "actions" | "detail";
 
-const NAV = [
+type NavItem = { tab: Tab; href: string; label: string; hint: string; Icon: typeof Activity };
+
+/**
+ * /md is gated on the `admin` role, which already has its own password (ADMIN_CODE) — so
+ * nothing here needs a list of people. The page itself re-checks and 404s, this just keeps
+ * the link out of the nav for a member.
+ */
+const MD: NavItem = { tab: "md", href: "/md", label: "My week", hint: "G W", Icon: CalendarRange };
+
+const BASE: NavItem[] = [
   { tab: "today", href: "/", label: "Today", hint: "G T", Icon: Activity },
   { tab: "meetings", href: "/meetings", label: "Meetings", hint: "G M", Icon: FileText },
   { tab: "actions", href: "/actions", label: "Actions", hint: "G A", Icon: CheckSquare },
-] as const;
+];
 
 /** A meeting page highlights Meetings — it's where you came from. */
 const forTab = (active: Tab) => (active === "detail" ? "meetings" : active);
@@ -30,6 +39,8 @@ export async function Shell({
 }) {
   const [sync, urgent] = await Promise.all([freshness(), actionUrgentCounts()]);
   const current = forTab(active);
+  const isAdmin = session?.role === "admin";
+  const nav = isAdmin ? [MD, ...BASE] : BASE;
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col lg:mx-0 lg:max-w-none lg:flex-row">
@@ -41,11 +52,11 @@ export async function Shell({
         <p className="mt-0.5 px-2 text-label text-ink-3">Linkd Prints · internal</p>
 
         <div className="mt-4">
-          <CommandPalette />
+          <CommandPalette isAdmin={isAdmin} />
         </div>
 
         <nav aria-label="Main" className="mt-4 flex flex-col gap-0.5">
-          {NAV.map(({ tab, href, label, hint, Icon }) => {
+          {nav.map(({ tab, href, label, hint, Icon }) => {
             const on = current === tab;
             return (
               <Link
@@ -62,7 +73,7 @@ export async function Shell({
                 <span className="flex-1">{label}</span>
                 {tab === "actions" && urgent.overdue > 0 ? (
                   <span
-                    className={`num text-label font-semibold ${on ? "" : "text-danger"}`}
+                    className={`num text-label font-semibold ${on ? "text-accent-ink-2" : "text-danger"}`}
                     title={`${urgent.overdue} overdue`}
                   >
                     {urgent.overdue}
@@ -95,7 +106,7 @@ export async function Shell({
               {session?.email ?? "—"}
             </span>
             <span className="flex shrink-0 items-center">
-              {session?.role === "admin" ? (
+              {isAdmin ? (
                 <span className="mr-1 rounded-full bg-warning-wash px-1.5 py-0.5 text-label font-semibold text-warning">
                   admin
                 </span>
@@ -124,12 +135,12 @@ export async function Shell({
             Baithak <span className="font-medium text-ink-3">Briefs</span>
           </Link>
           <div className="flex items-center">
-            {session?.role === "admin" ? (
+            {isAdmin ? (
               <span className="mr-1 rounded-full bg-warning-wash px-1.5 py-0.5 text-label font-semibold text-warning">
                 admin
               </span>
             ) : null}
-            <CommandPalette variant="icon" />
+            <CommandPalette variant="icon" isAdmin={isAdmin} />
             <ThemeToggle />
             <RefreshButton />
             <form action="/api/logout" method="post">
@@ -157,13 +168,15 @@ export async function Shell({
       <main className="flex-1 px-4 pt-4 pb-24 lg:min-w-0 lg:px-6 lg:pt-6 lg:pb-10">{children}</main>
 
       {/* ===================== MOBILE BOTTOM TABS ===================== */}
-      {/* Navigation belongs within thumb reach. Three top-level destinations, well
-          under the five-item ceiling, each a 56px target. */}
+      {/* Navigation belongs within thumb reach. Three destinations, four for an admin —
+          still under the five-item ceiling, each a 56px target. */}
       <nav
         aria-label="Main"
-        className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-3 border-t border-subtle bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
+        className={`fixed inset-x-0 bottom-0 z-10 grid border-t border-subtle bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden ${
+          nav.length === 4 ? "grid-cols-4" : "grid-cols-3"
+        }`}
       >
-        {NAV.map(({ tab, href, label, Icon }) => {
+        {nav.map(({ tab, href, label, Icon }) => {
           const on = current === tab;
           return (
             <Link

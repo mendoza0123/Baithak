@@ -20,6 +20,7 @@ const KEYS: [string, string][] = [
   ["Enter", "Open the focused row"],
   ["x", "Toggle the focused action done"],
   ["/", "Jump to search"],
+  ["g then w", "My week (admin)"],
   ["g then t", "Today"],
   ["g then m", "Meetings"],
   ["g then a", "Actions"],
@@ -69,6 +70,8 @@ export function Keys() {
 
       if (pendingG) {
         pendingG = false;
+        // /md 404s for a member, so this jump is harmless without a role check here.
+        if (e.key === "w") return router.push("/md");
         if (e.key === "t") return router.push("/");
         if (e.key === "m") return router.push("/meetings");
         if (e.key === "a") return router.push("/actions");

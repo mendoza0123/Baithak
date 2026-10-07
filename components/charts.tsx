@@ -249,6 +249,92 @@ export function AgeBars({
   );
 }
 
+/* ------------------------------------------------------------------ flow bars */
+
+/**
+ * Two series per period → grouped bars, not stacked: the question is "which is
+ * bigger", and a stack makes the second series impossible to compare because it
+ * no longer shares a baseline.
+ *
+ * Two series means a legend is mandatory, so identity is never colour-alone.
+ * A 2px gap separates the pair so the boundary reads without an outline.
+ */
+export function FlowBars({
+  data,
+  aLabel,
+  bLabel,
+}: {
+  data: { label: string; a: number; b: number }[];
+  aLabel: string;
+  bLabel: string;
+}) {
+  if (!data.length) return null;
+
+  const max = Math.max(...data.flatMap((d) => [d.a, d.b]), 1);
+  const bw = 15;
+  const pairGap = 2;
+  const slot = bw * 2 + pairGap + 16;
+  const base = 104;
+  const plot = 86;
+  const left = 26;
+  const width = left + data.length * slot;
+
+  return (
+    <div>
+      <svg
+        viewBox={`0 0 ${width} 126`}
+        width="100%"
+        height="auto"
+        role="img"
+        aria-label={`${aLabel} versus ${bLabel} per week: ${data.map((d) => `${d.label} ${d.a} and ${d.b}`).join(", ")}`}
+        className="block overflow-visible"
+      >
+        <line x1={left} y1={base} x2={width} y2={base} className="stroke-subtle" strokeWidth="1" />
+        <line x1={left} y1={base - plot / 2} x2={width} y2={base - plot / 2} className="stroke-subtle" strokeWidth="1" strokeOpacity="0.5" />
+        <text x={0} y={base + 4} className="fill-ink-3 num" fontSize="10">
+          0
+        </text>
+        <text x={0} y={base - plot + 4} className="fill-ink-3 num" fontSize="10">
+          {max}
+        </text>
+
+        {data.map((d, i) => {
+          const x = left + 8 + i * slot;
+          return (
+            <g key={d.label}>
+              <path d={vbar(x, base, Math.round((d.a / max) * plot), bw)} fill="var(--series-1)" />
+              <path
+                d={vbar(x + bw + pairGap, base, Math.round((d.b / max) * plot), bw)}
+                fill="var(--series-3)"
+              />
+              <text
+                x={x + bw + pairGap / 2}
+                y={base + 18}
+                textAnchor="middle"
+                className="fill-ink-3"
+                fontSize="10"
+              >
+                {d.label}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+
+      <div className="mt-3 flex flex-wrap items-center gap-4">
+        <span className="flex items-center gap-1.5 text-meta text-ink-2">
+          <span className="size-2.5 rounded-[2px] bg-series-1" aria-hidden />
+          {aLabel}
+        </span>
+        <span className="flex items-center gap-1.5 text-meta text-ink-2">
+          <span className="size-2.5 rounded-[2px] bg-series-3" aria-hidden />
+          {bLabel}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------------------------------------------------------- cadence heatmap */
 
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
